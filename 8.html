@@ -1,0 +1,2625 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมจัดการสต็อกวัตถุดิบอาหารและต้นทุน</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font for Inter */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        /* Custom modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 24px;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); /* shadow-lg */
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .bill-modal-content {
+            max-width: 600px; /* Wider for bill details */
+            text-align: left; /* Align text left for bill */
+        }
+        .bill-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        .bill-table th, .bill-table td {
+            border: 1px solid #e5e7eb; /* gray-200 */
+            padding: 0.5rem;
+            text-align: left;
+        }
+        .bill-table th {
+            background-color: #f9fafb; /* gray-50 */
+            font-weight: 600;
+        }
+        .qr-code-container {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .qr-code-container img {
+            width: 200px;
+            height: 200px;
+            border-radius: 0.5rem;
+        }
+        .loading-overlay {
+            display: flex;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Print-specific styles */
+        @media print {
+            body > *:not(.modal) { /* Hide everything except the modal when printing */
+                display: none;
+            }
+            .modal {
+                position: static; /* Allow modal to flow naturally in print */
+                display: block !important;
+                background-color: transparent;
+                overflow: visible;
+                margin: 0;
+                padding: 0;
+                width: auto;
+                height: auto;
+            }
+            .modal-content {
+                box-shadow: none;
+                border: none;
+                width: auto;
+                max-width: 100%;
+                margin: 0;
+                padding: 0;
+                text-align: left;
+                color: black !important; /* Ensure text is black */
+                background-color: white !important; /* Ensure background is white */
+            }
+            /* Ensure table and its contents are visible and styled for print */
+            .bill-table, .bill-table th, .bill-table td {
+                border-color: #000 !important; /* Ensure borders are black */
+                color: black !important; /* Ensure table text is black */
+            }
+            .bill-table th {
+                background-color: #f9fafb !important; /* Keep a light header background if desired */
+            }
+            .close-button, .print-button-container {
+                display: none !important;
+            }
+            .qr-code-container {
+              display: block !important; /* Ensure QR code is visible for print */
+            }
+            .qr-code-container img {
+              filter: grayscale(100%); /* Optional: Make QR code grayscale for monochrome printers */
+              -webkit-filter: grayscale(100%);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 min-h-screen flex items-center justify-center">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p class="ml-4 text-gray-700">กำลังโหลดข้อมูล...</p>
+    </div>
+
+    <div class="container mx-auto p-6 bg-white shadow-lg rounded-xl max-w-6xl w-full">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">โปรแกรมจัดการสต็อกวัตถุดิบอาหารและต้นทุน</h1>
+
+        <!-- Navigation Tabs -->
+        <nav class="mb-6 flex flex-wrap justify-center gap-4">
+            <button class="nav-button px-6 py-3 rounded-lg shadow-md transition-all duration-300 ease-in-out bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" data-section="rawMaterialSection">จัดการวัตถุดิบ</button>
+            <button class="nav-button px-6 py-3 rounded-lg shadow-md transition-all duration-300 ease-in-out bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" data-section="rawMaterialInboundSection">รับเข้าวัตถุดิบ</button>
+            <button class="nav-button px-6 py-3 rounded-lg shadow-md transition-all duration-300 ease-in-out bg-purple-500 text-white hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2" data-section="recipeSection">จัดการสูตรการผลิต</button>
+            <button class="nav-button px-6 py-3 rounded-lg shadow-md transition-all duration-300 ease-in-out bg-yellow-500 text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2" data-section="orderSection">รับออเดอร์อาหารลูกค้า</button>
+            <!-- Removed Customization Option Section Button -->
+        </nav>
+
+        <!-- Custom Alert Modal -->
+        <div id="customAlertModal" class="modal hidden">
+            <div class="modal-content">
+                <span id="closeAlertButton" class="close-button">&times;</span>
+                <p id="customAlertMessage" class="text-lg text-gray-700"></p>
+                <button id="okAlertButton" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">ตกลง</button>
+            </div>
+        </div>
+
+        <!-- Custom Confirm Modal -->
+        <div id="customConfirmModal" class="modal hidden">
+            <div class="modal-content">
+                <p id="customConfirmMessage" class="text-lg text-gray-700 mb-4"></p>
+                <div class="flex justify-center space-x-4">
+                    <button id="confirmYesButton" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">ใช่</button>
+                    <button id="confirmNoButton" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400">ไม่</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bill Details Modal -->
+        <div id="billModal" class="modal hidden">
+            <div class="modal-content bill-modal-content">
+                <span id="closeBillButton" class="close-button">&times;</span>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2 text-center">ร้านยำDIY</h2> <!-- Added shop name -->
+                <h3 class="text-xl font-bold text-gray-800 mb-4 text-center">ใบเสร็จ</h3>
+                <div id="billDetailsContent" class="text-gray-700 space-y-2">
+                    <!-- Bill details will be inserted here -->
+                </div>
+                <div class="print-button-container mt-6 text-center">
+                    <button id="printBillButton" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 mr-2">พิมพ์ใบเสร็จ</button>
+                    <button id="okBillButton" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">ปิด</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Slip Modal -->
+        <div id="paymentSlipModal" class="modal hidden">
+            <div class="modal-content">
+                <span id="closePaymentSlipModalButton" class="close-button">&times;</span>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">แนบ/ดูสลิปชำระเงิน</h2>
+                <div class="mb-4">
+                    <p class="text-gray-700 mb-2"><strong>สถานะการชำระเงิน:</strong> <span id="paymentStatusDisplay" class="font-semibold"></span></p>
+                    <p class="text-gray-700"><strong>วันที่ชำระ:</strong> <span id="paymentDateDisplay"></span></p>
+                </div>
+                <div class="mb-4">
+                    <label for="paymentSlipUrlInput" class="block text-sm font-medium text-gray-700 text-left">URL สลิป:</label>
+                    <input type="text" id="paymentSlipUrlInput" placeholder="วาง URL รูปภาพสลิปที่นี่"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div id="paymentSlipImageContainer" class="my-4 hidden">
+                    <img id="paymentSlipImage" src="" alt="สลิปชำระเงิน" class="max-w-full h-auto rounded-md shadow-md mx-auto" onerror="this.style.display='none';">
+                    <p class="text-red-500 text-sm mt-1" id="imageLoadError" style="display:none;">ไม่สามารถโหลดรูปภาพได้ (อาจเป็น URL ไม่ถูกต้อง)</p>
+                </div>
+                <div class="flex justify-center space-x-4 mt-6">
+                    <button id="savePaymentSlipButton" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-md">
+                        บันทึก URL สลิป
+                    </button>
+                    <button id="markAsPaidButton" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-md">
+                        ยืนยันชำระเงิน
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Material Section (now includes customization options management) -->
+        <div id="rawMaterialSection" class="content-section">
+            <div class="mb-8 p-6 bg-green-50 rounded-xl shadow-inner">
+                <h2 class="text-xl font-semibold text-green-800 mb-4">เพิ่ม/แก้ไขวัตถุดิบ</h2>
+                <form id="rawMaterialForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <input type="hidden" id="rawMaterialId">
+
+                    <div class="col-span-1">
+                        <label for="rawMaterialName" class="block text-sm font-medium text-gray-700">ชื่อวัตถุดิบ:</label>
+                        <input type="text" id="rawMaterialName" placeholder="ชื่อวัตถุดิบ" required
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                    </div>
+
+                    <div class="col-span-1">
+                        <label for="rawMaterialQuantity" class="block text-sm font-medium text-gray-700">จำนวนสต็อกเริ่มต้น:</label>
+                        <input type="number" id="rawMaterialQuantity" placeholder="จำนวน" required min="0" step="0.0001"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                    </div>
+
+                    <div class="col-span-1">
+                        <label for="rawMaterialPrice" class="block text-sm font-medium text-gray-700">ต้นทุนเฉลี่ย/หน่วยเริ่มต้น (บาท):</label>
+                        <input type="number" id="rawMaterialPrice" placeholder="ราคา" required min="0" step="0.01"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                    </div>
+
+                    <div class="col-span-1 flex items-end">
+                        <button type="submit"
+                                class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-md">
+                            <span id="rawMaterialFormButtonText">เพิ่มวัตถุดิบ</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="mb-10">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">รายการวัตถุดิบในสต็อก</h2>
+                <div class="overflow-x-auto rounded-lg shadow-md">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">
+                                    ชื่อวัตถุดิบ
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    จำนวนสต็อก
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    ต้นทุนเฉลี่ย/หน่วย
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    มูลค่ารวมสต็อก
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">
+                                    การดำเนินการ
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="rawMaterialList" class="bg-white divide-y divide-gray-200">
+                            <!-- Raw material rows will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="noRawMaterialsMessage" class="text-center text-gray-500 py-4 hidden">
+                    ยังไม่มีวัตถุดิบในสต็อก
+                </div>
+            </div>
+
+            <!-- Customization Options Management Section (Moved here from its own section) -->
+            <div class="p-6 bg-orange-50 rounded-xl shadow-inner mb-10">
+                <h2 class="text-xl font-semibold text-orange-800 mb-4">จัดการตัวเลือกปรับแต่ง (สำหรับฟอร์มลูกค้า)</h2>
+                <p class="text-gray-600 mb-6">กำหนดวัตถุดิบที่สามารถเลือกเป็นตัวเลือกปรับแต่งในฟอร์มลูกค้าได้ และเชื่อมโยงกับต้นทุนวัตถุดิบในสต็อก</p>
+
+                <!-- Customization Option Form -->
+                <form id="customizationOptionForm" class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="hidden" id="customizationOptionId">
+
+                    <div class="col-span-1">
+                        <label for="customizationName" class="block text-sm font-medium text-gray-700">ชื่อตัวเลือก (แสดงให้ลูกค้า):</label>
+                        <input type="text" id="customizationName" placeholder="เช่น กุ้ง, มะเขือเทศ" required
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm">
+                    </div>
+
+                    <div class="col-span-1">
+                        <label for="customizationType" class="block text-sm font-medium text-gray-700">ประเภท:</label>
+                        <select id="customizationType" required
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm">
+                            <option value="">เลือกประเภท</option>
+                            <option value="mainIngredient">วัตถุดิบหลัก</option>
+                            <option value="vegetable">ผัก</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-span-1">
+                        <label for="linkedRawMaterialId" class="block text-sm font-medium text-gray-700">เชื่อมโยงกับวัตถุดิบในสต็อก:</label>
+                        <select id="linkedRawMaterialId" required
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm">
+                            <option value="">เลือกวัตถุดิบ</option>
+                            <!-- Raw material options populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="col-span-1">
+                        <label for="sellingPriceModifier" class="block text-sm font-medium text-gray-700">ราคาขายเพิ่ม (บาท):</label>
+                        <input type="number" id="sellingPriceModifier" placeholder="0.00" value="0" min="0" step="0.01"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm">
+                    </div>
+
+                    <div class="col-span-full flex justify-end">
+                        <button type="submit"
+                                class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-md">
+                            <span id="customizationOptionFormButtonText">เพิ่มตัวเลือก</span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Customization Options List -->
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">รายการตัวเลือกปรับแต่ง</h3>
+                    <div class="overflow-x-auto rounded-lg shadow-md">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">
+                                        ชื่อตัวเลือก
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ประเภท
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        วัตถุดิบเชื่อมโยง
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ต้นทุนเฉลี่ย (อัปเดตจากสต็อก)
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ราคาขายเพิ่ม
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">
+                                        การดำเนินการ
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="customizationOptionList" class="bg-white divide-y divide-gray-200">
+                                <!-- Customization option rows will be inserted here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noCustomizationOptionsMessage" class="text-center text-gray-500 py-4 hidden">
+                        ยังไม่มีตัวเลือกปรับแต่ง
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Material Inbound Section -->
+        <div id="rawMaterialInboundSection" class="content-section hidden">
+            <div class="mb-8 p-6 bg-blue-50 rounded-xl shadow-inner">
+                <h2 class="text-xl font-semibold text-blue-800 mb-4">บันทึกการรับเข้าวัตถุดิบ</h2>
+                <form id="rawMaterialInboundForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="col-span-1">
+                        <label for="inboundRawMaterialSelect" class="block text-sm font-medium text-gray-700">วัตถุดิบ:</label>
+                        <select id="inboundRawMaterialSelect" required
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">เลือกวัตถุดิบ</option>
+                            <!-- Options populated dynamically from rawMaterials -->
+                        </select>
+                    </div>
+                    <div class="col-span-1">
+                        <label for="inboundQuantityInput" class="block text-sm font-medium text-gray-700">จำนวนที่รับเข้า:</label>
+                        <input type="number" id="inboundQuantityInput" placeholder="จำนวน" required min="0" step="0.0001"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label for="inboundPricePerUnitInput" class="block text-sm font-medium text-gray-700">ราคาซื้อ/หน่วย (บาท):</label>
+                        <input type="number" id="inboundPricePerUnitInput" placeholder="ราคาซื้อ" required min="0" step="0.01"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div class="col-span-1 flex items-end">
+                        <button type="submit"
+                                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-md">
+                            บันทึกการรับเข้า
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="mb-10">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">ประวัติการรับเข้าวัตถุดิบ</h2>
+                <div class="overflow-x-auto rounded-lg shadow-md">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">
+                                    วันที่
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    วัตถุดิบ
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    จำนวน
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    ราคาซื้อ/หน่วย
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    รวมต้นทุน
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">
+                                    การดำเนินการ
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="rawMaterialInboundList" class="bg-white divide-y divide-gray-200">
+                            <!-- Raw material inbound rows will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="noRawMaterialInboundsMessage" class="text-center text-gray-500 py-4 hidden">
+                    ยังไม่มีประวัติการรับเข้าวัตถุดิบ
+                </div>
+            </div>
+        </div>
+
+        <!-- Production Recipe Section -->
+        <div id="recipeSection" class="content-section hidden">
+            <div class="p-6 bg-purple-50 rounded-xl shadow-inner mb-10">
+                <h2 class="text-xl font-semibold text-purple-800 mb-4">จัดการสูตรการผลิต</h2>
+
+                <!-- Recipe Form -->
+                <form id="recipeForm" class="mb-6">
+                    <input type="hidden" id="recipeId">
+                    <div class="mb-4">
+                        <label for="finishedGoodName" class="block text-sm font-medium text-gray-700">ชื่อสินค้าสำเร็จรูป:</label>
+                        <input type="text" id="finishedGoodName" placeholder="ชื่อสินค้าสำเร็จรูป (เช่น แกงเขียวหวาน)" required
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
+                    </div>
+
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">ส่วนผสม:</h3>
+                    <div id="ingredientsContainer" class="space-y-3 mb-4">
+                        <!-- Dynamic ingredient inputs will be added here -->
+                    </div>
+                    <button type="button" id="addIngredientButton"
+                            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-sm">
+                        เพิ่มส่วนผสม
+                    </button>
+                    <button type="submit"
+                            class="ml-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-md">
+                        <span id="recipeFormButtonText">เพิ่มสูตร</span>
+                    </button>
+                </form>
+
+                <!-- Recipe List Table -->
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">รายการสูตรการผลิต</h3>
+                    <div class="overflow-x-auto rounded-lg shadow-md">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">
+                                        ชื่อสินค้าสำเร็จรูป
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ส่วนผสม
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ต้นทุนต่อหน่วย (บาท)
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">
+                                        การดำเนินการ
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="recipeList" class="bg-white divide-y divide-gray-200">
+                                <!-- Recipe rows will be inserted here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noRecipesMessage" class="text-center text-gray-500 py-4 hidden">
+                        ยังไม่มีสูตรการผลิต
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order/Sales Management Section -->
+        <div id="orderSection" class="content-section hidden">
+            <div class="p-6 bg-yellow-50 rounded-xl shadow-inner">
+                <h2 class="text-xl font-semibold text-yellow-800 mb-4">รับออเดอร์อาหารลูกค้า</h2>
+                <p class="text-gray-600 mb-6">กรอกข้อมูลเพื่อบันทึกออเดอร์อาหารที่ได้รับจากลูกค้า</p>
+
+                <!-- Order/Sales Form -->
+                <form id="orderForm" class="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="col-span-full">
+                        <label for="customerName" class="block text-sm font-medium text-gray-700">ชื่อลูกค้า:</label>
+                        <input type="text" id="customerName" placeholder="ชื่อลูกค้า (ไม่บังคับ)"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm">
+                    </div>
+
+                    <div class="col-span-1">
+                        <label for="orderFinishedGood" class="block text-sm font-medium text-gray-700">สินค้าสำเร็จรูป:</label>
+                        <select id="orderFinishedGood" required
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm">
+                            <option value="">เลือกสินค้าสำเร็จรูป</option>
+                            <!-- Options will be dynamically loaded by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-span-1">
+                        <label for="orderQuantity" class="block text-sm font-medium text-gray-700">จำนวน:</label>
+                        <input type="number" id="orderQuantity" placeholder="จำนวน" required min="1" step="0.0001"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label for="orderSellingPricePerUnit" class="block text-sm font-medium text-gray-700">ราคาขาย/หน่วย (บาท):</label>
+                        <input type="number" id="orderSellingPricePerUnit" placeholder="ราคาขาย" required min="0" step="0.01"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label for="paymentMethod" class="block text-sm font-medium text-gray-700">วิธีชำระเงิน:</label>
+                        <select id="paymentMethod"
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm">
+                            <option value="เงินสด">เงินสด</option>
+                            <option value="โอนเงิน">โอนเงิน</option>
+                        </select>
+                    </div>
+
+                    <div id="transferDetailsDiv" class="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                        <div class="col-span-1">
+                            <label for="bankName" class="block text-sm font-medium text-gray-700">ชื่อธนาคาร:</label>
+                            <input type="text" id="bankName" placeholder="ชื่อธนาคาร"
+                                   class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="accountNumber" class="block text-sm font-medium text-gray-700">เลขบัญชี:</label>
+                            <input type="text" id="accountNumber" placeholder="เลขบัญชี"
+                                   class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm">
+                        </div>
+                    </div>
+
+                    <div class="col-span-full flex justify-end mt-4">
+                        <button type="submit"
+                                class="w-full md:w-auto bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-md">
+                            บันทึกออเดอร์
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Order/Sales List Table -->
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">ประวัติออเดอร์ / การขาย</h3>
+                    <div class="overflow-x-auto rounded-lg shadow-md">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">
+                                        เลขที่บิล
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        วันที่
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ลูกค้า
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        สินค้า
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        จำนวน
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ต้นทุนรวม
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ยอดขายรวม
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        สถานะชำระเงิน
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        วันที่ชำระ
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">
+                                        การดำเนินการ
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderList" class="bg-white divide-y divide-gray-200">
+                                <!-- Order rows will be inserted here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noOrdersMessage" class="text-center text-gray-500 py-4 hidden">
+                        ยังไม่มีรายการออเดอร์/การขาย
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase CDN -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, updateDoc, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase instances (now defined in module scope for better practice)
+        let firebaseApp = null;
+        let db = null;
+        let auth = null;
+        let userId = null;
+        let isFirebaseReady = false;
+        let appId = null; 
+
+        // --- Global Data Storage (will be populated by Firestore listeners) ---
+        let rawMaterials = []; // Stores master list of raw materials with current quantity and average cost
+        let recipes = [];
+        let orders = [];
+        let rawMaterialsInbound = []; // Stores history of raw material purchases
+        let customizationOptions = []; // Stores customizable raw materials for customer selection
+
+        let currentConfirmCallback = null; // For custom confirm modal
+        let currentOrderIdForSlip = null; // To store the order ID for the slip modal
+
+        // --- DOM Elements ---
+        // Raw Material Form
+        const rawMaterialForm = document.getElementById('rawMaterialForm');
+        const rawMaterialIdInput = document.getElementById('rawMaterialId');
+        const rawMaterialNameInput = document.getElementById('rawMaterialName');
+        const rawMaterialQuantityInput = document.getElementById('rawMaterialQuantity'); // Initial quantity
+        const rawMaterialPriceInput = document.getElementById('rawMaterialPrice');     // Initial average cost
+        const rawMaterialFormButtonText = document.getElementById('rawMaterialFormButtonText');
+        const rawMaterialListTableBody = document.getElementById('rawMaterialList');
+        const noRawMaterialsMessage = document.getElementById('noRawMaterialsMessage');
+
+        // Raw Material Inbound Form
+        const rawMaterialInboundForm = document.getElementById('rawMaterialInboundForm');
+        const inboundRawMaterialSelect = document.getElementById('inboundRawMaterialSelect');
+        const inboundQuantityInput = document.getElementById('inboundQuantityInput');
+        const inboundPricePerUnitInput = document.getElementById('inboundPricePerUnitInput');
+        const rawMaterialInboundListTableBody = document.getElementById('rawMaterialInboundList');
+        const noRawMaterialInboundsMessage = document.getElementById('noRawMaterialInboundsMessage');
+
+
+        // Recipe Form
+        const recipeForm = document.getElementById('recipeForm');
+        const recipeIdInput = document.getElementById('recipeId');
+        const finishedGoodNameInput = document.getElementById('finishedGoodName');
+        const ingredientsContainer = document.getElementById('ingredientsContainer');
+        const recipeFormButtonText = document.getElementById('recipeFormButtonText');
+        const addIngredientButton = document.getElementById('addIngredientButton'); // Added ID for event listener
+        const recipeListTableBody = document.getElementById('recipeList');
+        const noRecipesMessage = document.getElementById('noRecipesMessage');
+
+        // Order/Sales Form
+        const orderForm = document.getElementById('orderForm');
+        const customerNameInput = document.getElementById('customerName');
+        const orderFinishedGoodSelect = document.getElementById('orderFinishedGood');
+        const orderQuantityInput = document.getElementById('orderQuantity');
+        const orderSellingPricePerUnitInput = document.getElementById('orderSellingPricePerUnit');
+        const paymentMethodSelect = document.getElementById('paymentMethod');
+        const transferDetailsDiv = document.getElementById('transferDetailsDiv');
+        const bankNameInput = document.getElementById('bankName');
+        const accountNumberInput = document.getElementById('accountNumber');
+        const orderListTableBody = document.getElementById('orderList');
+        const noOrdersMessage = document.getElementById('noOrdersMessage');
+
+        // Customization Options Form (Now integrated into Raw Material Section)
+        const customizationOptionForm = document.getElementById('customizationOptionForm');
+        const customizationOptionIdInput = document.getElementById('customizationOptionId');
+        const customizationNameInput = document.getElementById('customizationName');
+        const customizationTypeSelect = document.getElementById('customizationType');
+        const linkedRawMaterialSelect = document.getElementById('linkedRawMaterialId'); // Corresponds to linkedRawMaterialId
+        const sellingPriceModifierInput = document.getElementById('sellingPriceModifier');
+        const customizationOptionFormButtonText = document.getElementById('customizationOptionFormButtonText');
+        const customizationOptionListTableBody = document.getElementById('customizationOptionList');
+        const noCustomizationOptionsMessage = document.getElementById('noCustomizationOptionsMessage');
+
+
+        // Custom Modals
+        const customAlertModal = document.getElementById('customAlertModal');
+        const customAlertMessage = document.getElementById('customAlertMessage');
+        const closeAlertButton = document.getElementById('closeAlertButton'); // Added ID
+        const okAlertButton = document.getElementById('okAlertButton');       // Added ID
+        const customConfirmModal = document.getElementById('customConfirmModal');
+        const customConfirmMessage = document.getElementById('customConfirmMessage');
+        const confirmYesButton = document.getElementById('confirmYesButton');
+        const confirmNoButton = document.getElementById('confirmNoButton');
+        const billModal = document.getElementById('billModal');
+        const billDetailsContent = document.getElementById('billDetailsContent');
+        const closeBillButton = document.getElementById('closeBillButton');   // Added ID
+        const okBillButton = document.getElementById('okBillButton');         // Added ID
+        const printBillButton = document.getElementById('printBillButton'); // Added ID for print button
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // Payment Slip Modal
+        const paymentSlipModal = document.getElementById('paymentSlipModal');
+        const closePaymentSlipModalButton = document.getElementById('closePaymentSlipModalButton');
+        const paymentStatusDisplay = document.getElementById('paymentStatusDisplay');
+        const paymentDateDisplay = document.getElementById('paymentDateDisplay');
+        const paymentSlipUrlInput = document.getElementById('paymentSlipUrlInput');
+        const paymentSlipImageContainer = document.getElementById('paymentSlipImageContainer');
+        const paymentSlipImage = document.getElementById('paymentSlipImage');
+        const imageLoadError = document.getElementById('imageLoadError');
+        const savePaymentSlipButton = document.getElementById('savePaymentSlipButton');
+        const markAsPaidButton = document.getElementById('markAsPaidButton');
+
+        // Navigation elements
+        const navButtons = document.querySelectorAll('.nav-button');
+        const contentSections = document.querySelectorAll('.content-section');
+
+
+        // --- Firebase Initialization and Listeners ---
+        async function initFirebase() {
+            loadingOverlay.style.display = 'flex'; // Show loading
+            try {
+                // *** เริ่มต้น: ส่วนที่คุณต้องแก้ไขเพื่อใส่ Firebase Config ของคุณเอง ***
+                // ก๊อปปี้ Object นี้ { ... } จาก Firebase Console -> Project settings -> Your apps -> Web app
+                // แล้ววางแทนที่ Object ว่างเปล่าด้านล่าง (ลบบรรทัดเดิมทิ้ง และวาง config ของคุณแทน)
+                // ตรวจสอบให้แน่ใจว่าค่าถูกต้องตรงกับโปรเจกต์ Firebase ของคุณทุกตัวอักษร!
+                const firebaseConfig = {
+  apiKey: "AIzaSyBUZk5TX99_msVOGKd8QaYn3eY6d1xq4xU",
+  authDomain: "smoothies-ead6f.firebaseapp.com",
+  databaseURL: "https://smoothies-ead6f-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "smoothies-ead6f",
+  storageBucket: "smoothies-ead6f.firebasestorage.app",
+  messagingSenderId: "131231321818",
+  appId: "1:131231321818:web:d8cd786c5e296f1e121fe3",
+  measurementId: "G-DL9DW86WSS"
+};
+                // *** สิ้นสุด: ส่วนที่คุณต้องแก้ไข ***
+
+                // เพิ่ม console log เพื่อตรวจสอบค่า config ที่โค้ดได้รับ
+                console.log("Firebase Config received:", firebaseConfig);
+
+                // ตรวจสอบว่า Firebase config มี apiKey และ authDomain หรือไม่
+                if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
+                    console.error("Firebase config is missing or incomplete (apiKey or authDomain). Data will not be persisted.");
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                    showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน. โปรดตรวจสอบ Firebase Config ของคุณอีกครั้ง (apiKey, authDomain).");
+                    return;
+                }
+
+                // กำหนดค่า appId จาก __app_id หรือ firebaseConfig.projectId
+                appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
+                console.log("Using appId:", appId); // เพิ่ม console log สำหรับ appId
+
+                firebaseApp = initializeApp(firebaseConfig);
+                db = getFirestore(firebaseApp);
+                auth = getAuth(firebaseApp);
+
+                // *** สำคัญ: ตรวจสอบว่าได้เปิดใช้งาน Anonymous Authentication ใน Firebase Console แล้ว ***
+                // Firebase Console -> Build -> Authentication -> Sign-in method -> Anonymous -> Enable
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Firebase authenticated. User ID:", userId);
+                        isFirebaseReady = true;
+                        document.getElementById('loadingOverlay').style.display = 'none';
+                        // Initial rendering once Firebase is ready and authenticated
+                        initFirestoreListeners();
+                        // Show default section after firebase is ready
+                        showSection('rawMaterialSection'); 
+                    } else {
+                        // Sign in anonymously if no user is found
+                        if (typeof __initial_auth_token !== 'undefined') {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            // หากยังไม่ได้เปิดใช้งาน Anonymous Authentication หรือ Firebase Config ผิด จะเกิด Error (auth/configuration-not-found) ที่นี่
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                showCustomAlert("เกิดข้อผิดพลาดในการโหลดระบบฐานข้อมูล: " + error.message);
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        function initFirestoreListeners() {
+            if (!isFirebaseReady) {
+                console.log("Firebase not ready for listeners.");
+                return;
+            }
+
+            // --- Raw Materials Listener ---
+            // Data stored under artifacts/{appId}/users/${userId}/rawMaterials
+            const rawMaterialsColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterials`);
+            onSnapshot(rawMaterialsColRef, (snapshot) => {
+                rawMaterials = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Raw materials loaded:", rawMaterials);
+                renderRawMaterials();
+                populateInboundRawMaterialSelect(); // Update select options for inbound form
+                populateLinkedRawMaterialSelect(); // Populate for customization options form
+            }, (error) => {
+                console.error("Error fetching raw materials:", error);
+                showCustomAlert("เกิดข้อผิดพลาดในการดึงวัตถุดิบ: " + error.message);
+            });
+
+            // --- Recipes Listener (Updated to public_recipes) ---
+            // Reverted to user-specific recipe collection for admin panel
+            const recipesColRef = collection(db, `artifacts/${appId}/users/${userId}/recipes`);
+            onSnapshot(recipesColRef, (snapshot) => {
+                recipes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Recipes loaded (from user-specific recipes):", recipes);
+                renderRecipes();
+            }, (error) => {
+                console.error("Error fetching recipes:", error);
+                showCustomAlert("เกิดข้อผิดพลาดในการดึงสูตร: " + error.message);
+            });
+
+            // --- Orders Listener (Updated to public_orders) ---
+            const ordersColRef = collection(db, `artifacts/${appId}/public_orders`);
+            onSnapshot(ordersColRef, (snapshot) => {
+                orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Sort orders by date descending, then by invoiceNo for consistent display
+                orders.sort((a, b) => {
+                    const dateA = new Date(a.orderDate); // Use orderDate from customer form
+                    const dateB = new Date(b.orderDate); // Use orderDate from customer form
+                    if (dateA.getTime() !== dateB.getTime()) {
+                        return dateB.getTime() - dateA.getTime(); // Newest first
+                    }
+                    // If dates are the same, sort by invoiceNo (assuming string comparison works forYYYYMMDD-XXXX)
+                    return (a.invoiceNo || '').localeCompare(b.invoiceNo || ''); // Handle null invoiceNo
+                });
+                console.log("Orders loaded (from public_orders):", orders);
+                renderOrders();
+            }, (error) => {
+                console.error("Error fetching orders:", error);
+                showCustomAlert("เกิดข้อผิดพลาดในการดึงออเดอร์: " + error.message);
+            });
+
+            // --- Raw Material Inbound Listener ---
+            const rawMaterialInboundColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterialInbound`);
+            onSnapshot(rawMaterialInboundColRef, (snapshot) => {
+                rawMaterialsInbound = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Sort by date descending
+                rawMaterialsInbound.sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
+                console.log("Raw materials inbound loaded:", rawMaterialsInbound);
+                renderRawMaterialInboundHistory();
+            }, (error) => {
+                console.error("Error fetching raw materials inbound:", error);
+                showCustomAlert("เกิดข้อผิดพลาดในการดึงประวัติการรับเข้าวัตถุดิบ: " + error.message);
+            });
+
+            // --- Customization Options Listener (New Public Collection) ---
+            // Changed collection path to follow /public/data/ structure
+            const customizationOptionsColRef = collection(db, `artifacts/${appId}/public/data/customization_options`);
+            onSnapshot(customizationOptionsColRef, (snapshot) => {
+                customizationOptions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Customization options loaded:", customizationOptions);
+                renderCustomizationOptions(); // Render the list in the admin UI
+            }, (error) => {
+                console.error("Error fetching customization options:", error);
+                showCustomAlert("เกิดข้อผิดพลาดในการดึงตัวเลือกปรับแต่ง: " + error.message);
+            });
+        }
+
+        // --- Custom Alert/Confirm/Bill Modal Functions ---
+        function showCustomAlert(message) {
+            customAlertMessage.textContent = message;
+            customAlertModal.style.display = 'flex';
+        }
+
+        function closeCustomAlert() {
+            customAlertModal.style.display = 'none';
+        }
+
+        function showCustomConfirm(message, callback) {
+            customConfirmMessage.textContent = message;
+            currentConfirmCallback = callback;
+            customConfirmModal.style.display = 'flex';
+        }
+        
+        /**
+         * Displays the bill details modal for a given order.
+         * @param {string} orderId - The ID of the order to display.
+         */
+        function showBillModal(orderId) {
+            const order = orders.find(o => o.id === orderId);
+            if (!order) {
+                showCustomAlert('ไม่พบข้อมูลออเดอร์');
+                return;
+            }
+
+            // Using orderDate from customer form
+            const formattedDate = new Date(order.orderDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            let paymentDetailsHtml = '';
+            // For customer orders, paymentMethod is initially 'โอนเงิน/เงินสด', admin will confirm.
+            // If admin manually sets it to 'โอนเงิน' and provides details, display them.
+            if (order.paymentMethod === 'โอนเงิน' && order.bankName && order.accountNumber) {
+                const qrCodeImageUrl = "https://content-fetcher.web.app/content?id=uploaded:QR%20code.JPG-f11d2e2d-a628-40dc-bf59-52e123f8d710";
+                
+                paymentDetailsHtml = `
+                    <p class="font-semibold mt-4">รายละเอียดการชำระเงิน (โอนเงิน):</p>
+                    <p><strong>ธนาคาร:</strong> ${order.bankName || '-'}</p>
+                    <p><strong>เลขบัญชี:</strong> ${order.accountNumber || '-'}</p>
+                    <div class="qr-code-container">
+                        <img src="${qrCodeImageUrl}" alt="QR Code for transfer" onerror="this.onerror=null;this.src='https://placehold.co/200x200/cccccc/333333?text=QR+Code+Error';">
+                        <p class="text-sm text-gray-500">สแกน QR Code เพื่อชำระเงิน (โปรดระบุจำนวนเงิน: ${order.totalOrderValue.toFixed(2)} บาท)</p>
+                        <p class="text-sm text-red-500">หมายเหตุ: QR Code นี้เป็น QR PromptPay ทั่วไป โปรดกรอกยอดเงินเองเมื่อสแกน</p>
+                    </div>
+                    <p class="text-sm text-gray-500">โปรดโอนเงินภายใน 24 ชั่วโมง</p>
+                `;
+            } else {
+                paymentDetailsHtml = `<p class="font-semibold mt-4">วิธีชำระเงิน: ${order.paymentMethod || 'ไม่ระบุ'}</p>`;
+            }
+
+            // Payment status and date on bill
+            const paymentStatusText = order.isCancelled ? 'ยกเลิกแล้ว' : (order.isPaid ? 'ชำระแล้ว' : 'ยังไม่ชำระ');
+            const paymentDateText = order.isPaid && order.paymentDate ? new Date(order.paymentDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+
+
+            // Extract item details and customizations
+            let itemsHtml = '';
+            let totalOrderRevenue = 0;
+            if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+                order.items.forEach(item => {
+                    let customizationsHtml = '';
+                    if (item.customizations) {
+                        if (item.customizations.mainIngredients && item.customizations.mainIngredients.length > 0) {
+                            // Display main ingredients including their names and costs
+                            const mainIngsDisplay = item.customizations.mainIngredients.map(ing => {
+                                return `${ing.name}${ing.cost > 0 ? `` : ''}`; // Removed cost from bill
+                            }).join(', ');
+                            customizationsHtml += `<li>วัตถุดิบหลัก: ${mainIngsDisplay}</li>`;
+                        }
+                        if (item.customizations.soupBase) {
+                            customizationsHtml += `<li>น้ำยา: ${item.customizations.soupBase}</li>`;
+                        }
+                        if (item.customizations.spiciness) {
+                            customizationsHtml += `<li>ระดับความเผ็ด: ${item.customizations.spiciness}</li>`;
+                        }
+                        if (item.customizations.vegetables && item.customizations.vegetables.length > 0) {
+                            // Display vegetables including their names and costs
+                            const vegsDisplay = item.customizations.vegetables.map(veg => {
+                                return `${veg.name}${veg.cost > 0 ? `` : ''}`; // Removed cost from bill
+                            }).join(', ');
+                            customizationsHtml += `<li>ผัก: ${vegsDisplay}</li>`;
+                        }
+                        if (item.customizations.remarks) {
+                            customizationsHtml += `<li>หมายเหตุ: ${item.customizations.remarks}</li>`;
+                        }
+                    }
+
+                    itemsHtml += `
+                        <tr>
+                            <td>
+                                ${item.finishedGoodName}
+                                ${customizationsHtml ? `<ul class="list-disc list-inside text-xs text-gray-600">${customizationsHtml}</ul>` : ''}
+                            </td>
+                            <td>${item.quantity.toFixed(4)}</td>
+                            <td>${item.finalSellingPricePerUnit.toFixed(2)} บาท</td>
+                            <td>${(item.finalSellingPricePerUnit * item.quantity).toFixed(2)} บาท</td>
+                        </tr>
+                    `;
+                    totalOrderRevenue += (item.finalSellingPricePerUnit * item.quantity);
+                });
+            }
+
+
+            billDetailsContent.innerHTML = `
+                <p class="text-sm text-gray-500 mb-2"><strong>เลขที่บิล:</strong> ${order.invoiceNo || 'ยังไม่กำหนด'}</p>
+                <p><strong>วันที่สั่ง:</strong> ${formattedDate}</p>
+                <p><strong>ลูกค้า:</strong> ${order.customerName || '-'}</p>
+                <p><strong>เบอร์โทร:</strong> ${order.customerPhone || '-'}</p>
+                <p><strong>ที่อยู่:</strong> ${order.customerAddress || '-'}</p>
+                
+                <h3 class="text-xl font-bold mt-4">รายการสั่ง</h3>
+                <table class="bill-table">
+                    <thead>
+                        <tr>
+                            <th>สินค้า</th>
+                            <th>จำนวน</th>
+                            <th>ราคา/หน่วย</th>
+                            <th>รวม</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                
+                <p class="font-bold text-xl text-right mt-4">ยอดรวม: ${totalOrderRevenue.toFixed(2)} บาท</p>
+                <!-- Removed totalCost from bill display as per user request -->
+                ${paymentDetailsHtml}
+                <p class="font-semibold mt-4">สถานะชำระเงิน: <span class="${order.isPaid ? 'text-green-600' : 'text-red-600'}">${paymentStatusText}</span></p>
+                <p>วันที่ชำระ: ${paymentDateText}</p>
+                ${order.paymentSlipUrl ? `<p class="mt-2"><a href="${order.paymentSlipUrl}" target="_blank" class="text-blue-500 hover:underline">ดูสลิปชำละเงิน</a></p>` : ''}
+
+                <p class="text-sm mt-4 text-gray-600">ขอบคุณที่อุดหนุน!</p>
+            `;
+            billModal.style.display = 'flex';
+        }
+
+        function closeBillModal() {
+            billModal.style.display = 'none';
+        }
+
+        function printBill() {
+            window.print();
+        }
+
+        /**
+         * Shows a specific content section and hides others.
+         * @param {string} sectionId - The ID of the section to show.
+         */
+        function showSection(sectionId) {
+            contentSections.forEach(section => {
+                if (section.id === sectionId) {
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            });
+
+            // Optional: Add/remove active class for styling nav buttons
+            navButtons.forEach(button => {
+                if (button.dataset.section === sectionId) {
+                    button.classList.add('bg-opacity-75', 'ring-2'); // Example active style
+                } else {
+                    button.classList.remove('bg-opacity-75', 'ring-2'); // Example active style
+                }
+            });
+        }
+
+
+        // This function assigns onclick handlers AFTER the DOM elements are guaranteed to be available.
+        function setupEventListeners() {
+            // Custom Alert/Confirm Modals
+            if (okAlertButton) okAlertButton.addEventListener('click', closeCustomAlert);
+            if (closeAlertButton) closeAlertButton.addEventListener('click', closeCustomAlert);
+            if (okBillButton) okBillButton.addEventListener('click', closeBillModal);
+            if (closeBillButton) closeBillButton.addEventListener('click', closeBillModal);
+            if (printBillButton) printBillButton.addEventListener('click', printBill); // Event listener for print button
+            
+            if (closePaymentSlipModalButton) closePaymentSlipModalButton.addEventListener('click', closePaymentSlipModal);
+            if (savePaymentSlipButton) savePaymentSlipButton.addEventListener('click', savePaymentSlipUrl);
+            if (markAsPaidButton) markAsPaidButton.addEventListener('click', () => markOrderAsPaid(currentOrderIdForSlip));
+            
+            // Add listener for image error
+            if (paymentSlipImage) {
+                paymentSlipImage.onerror = () => {
+                    paymentSlipImageContainer.classList.add('hidden');
+                    imageLoadError.style.display = 'block';
+                };
+                paymentSlipImage.onload = () => {
+                    imageLoadError.style.display = 'none';
+                    paymentSlipImageContainer.classList.remove('hidden');
+                };
+            }
+
+
+            if (confirmYesButton) {
+                confirmYesButton.addEventListener('click', () => {
+                    if (currentConfirmCallback) {
+                        currentConfirmCallback(true);
+                    }
+                    customConfirmModal.style.display = 'none';
+                });
+            } else {
+                console.error("confirmYesButton not found. Event listener not attached.");
+            }
+
+            if (confirmNoButton) {
+                confirmNoButton.addEventListener('click', () => {
+                    if (currentConfirmCallback) {
+                        currentConfirmCallback(false);
+                    }
+                    customConfirmModal.style.display = 'none';
+                });
+            } else {
+                 console.error("confirmNoButton not found. Event listener not attached.");
+            }
+
+            // Navigation buttons
+            navButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const sectionToShow = e.target.dataset.section;
+                    showSection(sectionToShow);
+                });
+            });
+
+            // Event listener for payment method selection to show/hide transfer details.
+            if (paymentMethodSelect) {
+                paymentMethodSelect.addEventListener('change', () => {
+                    if (paymentMethodSelect.value === 'โอนเงิน') {
+                        transferDetailsDiv.classList.remove('hidden');
+                        bankNameInput.setAttribute('required', 'required');
+                        accountNumberInput.setAttribute('required', 'required');
+                    } else {
+                        transferDetailsDiv.classList.add('hidden');
+                        bankNameInput.removeAttribute('required');
+                        accountNumberInput.removeAttribute('required');
+                        bankNameInput.value = ''; // Clear fields when hidden
+                        accountNumberInput.value = '';
+                    }
+                });
+            } else {
+                console.error("paymentMethodSelect not found. Event listener not attached.");
+            }
+
+            // Raw Material Form submission
+            if (rawMaterialForm) {
+                rawMaterialForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+
+                    const id = rawMaterialIdInput.value;
+                    const name = rawMaterialNameInput.value.trim();
+                    const currentQuantity = parseFloat(rawMaterialQuantityInput.value); // Use as initial current quantity
+                    const averageCostPerUnit = parseFloat(rawMaterialPriceInput.value); // Use as initial average cost
+
+                    if (name === '' || isNaN(currentQuantity) || isNaN(averageCostPerUnit) || currentQuantity < 0 || averageCostPerUnit < 0) {
+                        showCustomAlert('โปรดกรอกข้อมูลวัตถุดิบให้ครบถ้วนและถูกต้อง (จำนวนและราคาต้องไม่ติดลบ)');
+                        return;
+                    }
+
+                    try {
+                        const rawMaterialsColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterials`);
+                        if (id) {
+                            // Update existing raw material's name, initial quantity, and initial average cost
+                            // Note: For existing items, quantity/price should ideally be updated via inbound,
+                            // this form is for master data.
+                            await setDoc(doc(rawMaterialsColRef, id), { name, currentQuantity, averageCostPerUnit });
+
+                            // --- Logic to update linked customization options when raw material master data is edited ---
+                            const publicCustomizationOptionsColRef = collection(db, `artifacts/${appId}/public/data/customization_options`);
+                            const linkedOptionsQuery = query(publicCustomizationOptionsColRef, where("linkedRawMaterialId", "==", id));
+                            const linkedOptionsSnapshot = await getDocs(linkedOptionsQuery);
+
+                            const batch = writeBatch(db); // Use batch for multiple updates
+                            linkedOptionsSnapshot.forEach((docSnap) => {
+                                const optionRef = doc(publicCustomizationOptionsColRef, docSnap.id);
+                                batch.update(optionRef, {
+                                    currentAverageCost: averageCostPerUnit, // Update to the new average cost from the form
+                                    linkedRawMaterialName: name // Update name if it changed
+                                });
+                            });
+                            await batch.commit();
+                            // --- End logic ---
+
+                        } else {
+                            // Add new raw material with initial current quantity and average cost
+                            await addDoc(rawMaterialsColRef, { name, currentQuantity, averageCostPerUnit });
+                        }
+
+                        rawMaterialForm.reset();
+                        rawMaterialIdInput.value = '';
+                        rawMaterialFormButtonText.textContent = 'เพิ่มวัตถุดิบ';
+                    } catch (error) {
+                        console.error("Error saving raw material:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการบันทึกวัตถุดิบ: " + error.message);
+                    }
+                });
+            } else {
+                console.error("rawMaterialForm not found. Event listener not attached.");
+            }
+
+            // Raw Material Inbound Form submission (New)
+            if (rawMaterialInboundForm) {
+                rawMaterialInboundForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+
+                    const selectedRawMaterialId = inboundRawMaterialSelect.value;
+                    const quantityPurchased = parseFloat(inboundQuantityInput.value);
+                    const pricePerUnitPurchased = parseFloat(inboundPricePerUnitInput.value);
+
+                    if (selectedRawMaterialId === '' || isNaN(quantityPurchased) || isNaN(pricePerUnitPurchased) || quantityPurchased < 0 || pricePerUnitPurchased < 0) {
+                        showCustomAlert('โปรดเลือกวัตถุดิบและกรอกจำนวนที่ซื้อและราคาที่ถูกต้อง (จำนวนต้องไม่ติดลบ, ราคาต้องไม่ติดลบ)');
+                        return;
+                    }
+
+                    const rawMaterialToUpdate = rawMaterials.find(m => m.id === selectedRawMaterialId);
+                    if (!rawMaterialToUpdate) {
+                        showCustomAlert('ไม่พบวัตถุดิบที่เลือก');
+                        return;
+                    }
+
+                    try {
+                        // Calculate new average cost and total quantity
+                        const existingQuantity = rawMaterialToUpdate.currentQuantity || 0;
+                        const existingAverageCost = rawMaterialToUpdate.averageCostPerUnit || 0;
+
+                        const newTotalQuantity = existingQuantity + quantityPurchased;
+                        let newAverageCost = existingAverageCost; // Default to existing if no new quantity
+                        if (newTotalQuantity > 0) {
+                            const totalValueOfExisting = existingQuantity * existingAverageCost;
+                            const totalValueOfPurchase = quantityPurchased * pricePerUnitPurchased;
+                            newAverageCost = (totalValueOfExisting + totalValueOfPurchase) / newTotalQuantity;
+                        }
+
+                        // Update raw material in Firestore
+                        const rawMaterialsColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterials`);
+                        await updateDoc(doc(rawMaterialsColRef, selectedRawMaterialId), {
+                            currentQuantity: newTotalQuantity,
+                            averageCostPerUnit: newAverageCost
+                        });
+
+                        // --- Logic to update linked customization options ---
+                        const publicCustomizationOptionsColRef = collection(db, `artifacts/${appId}/public/data/customization_options`);
+                        const linkedOptionsQuery = query(publicCustomizationOptionsColRef, where("linkedRawMaterialId", "==", selectedRawMaterialId));
+                        const linkedOptionsSnapshot = await getDocs(linkedOptionsQuery);
+
+                        const batch = writeBatch(db); // Use batch for multiple updates
+                        linkedOptionsSnapshot.forEach((docSnap) => {
+                            const optionRef = doc(publicCustomizationOptionsColRef, docSnap.id);
+                            batch.update(optionRef, {
+                                currentAverageCost: newAverageCost, // Update to the newly calculated average cost
+                                linkedRawMaterialName: rawMaterialToUpdate.name // Ensure name is also updated if raw material name changes
+                            });
+                        });
+                        await batch.commit();
+                        // --- End logic ---
+
+                        // Add inbound record to Firestore
+                        const rawMaterialInboundColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterialInbound`);
+                        await addDoc(rawMaterialInboundColRef, {
+                            rawMaterialId: selectedRawMaterialId,
+                            rawMaterialName: rawMaterialToUpdate.name,
+                            quantityPurchased: quantityPurchased,
+                            pricePerUnitPurchased: pricePerUnitPurchased,
+                            totalCost: quantityPurchased * pricePerUnitPurchased,
+                            purchaseDate: new Date().toISOString(),
+                            userId: userId // Store userId for security rules
+                        });
+
+                        rawMaterialInboundForm.reset();
+                        showCustomAlert('บันทึกการรับเข้าวัตถุดิบและอัปเดตต้นทุนเฉลี่ยเรียบร้อยแล้ว!');
+                    } catch (error) {
+                        console.error("Error saving raw material inbound or updating average cost:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการบันทึกการรับเข้า: " + error.message);
+                    }
+                });
+            } else {
+                console.error("rawMaterialInboundForm not found. Event listener not attached.");
+            }
+
+            // Recipe Form submission
+            if (recipeForm) {
+                recipeForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+
+                    const id = recipeIdInput.value;
+                    const finishedGoodName = finishedGoodNameInput.value.trim();
+                    const ingredientInputs = ingredientsContainer.querySelectorAll('.ingredient-raw-material-id');
+                    const quantityInputs = ingredientsContainer.querySelectorAll('.ingredient-quantity');
+
+                    if (finishedGoodName === '') {
+                        showCustomAlert('โปรดกรอกชื่อสินค้าสำเร็จรูป');
+                        return;
+                    }
+
+                    const ingredients = [];
+                    let isValidIngredients = true;
+                    if (ingredientInputs.length === 0) {
+                        showCustomAlert('โปรดเพิ่มส่วนผสมอย่างน้อยหนึ่งรายการ');
+                        return;
+                    }
+
+                    ingredientInputs.forEach((select, index) => {
+                        const rawMaterialId = select.value;
+                        const quantityNeeded = parseFloat(quantityInputs[index].value);
+
+                        // Find the raw material to get its current averageCostPerUnit
+                        const rawMaterial = rawMaterials.find(m => m.id === rawMaterialId);
+                        const costPerUnit = rawMaterial ? rawMaterial.averageCostPerUnit || 0 : 0; // Get average cost or 0 if not found
+
+
+                        if (rawMaterialId === '' || isNaN(quantityNeeded) || quantityNeeded < 0) {
+                            isValidIngredients = false;
+                            showCustomAlert('โปรดเลือกวัตถุดิบและกรอกจำนวนที่ใช้ให้ถูกต้อง (ต้องไม่ติดลบ)');
+                            return;
+                        }
+                        ingredients.push({ rawMaterialId, quantityNeeded, costPerUnit }); // Store costPerUnit
+                    });
+
+                    if (!isValidIngredients) {
+                        return; // Stop if any ingredient input is invalid
+                    }
+
+                    try {
+                        // Updated to save recipes to user's recipes
+                        const recipesColRef = collection(db, `artifacts/${appId}/users/${userId}/recipes`);
+                        const sellingPricePerUnit = parseFloat(prompt("โปรดระบุราคาขายเริ่มต้นต่อหน่วยสำหรับเมนูนี้ (บาท):"));
+                        if (isNaN(sellingPricePerUnit) || sellingPricePerUnit < 0) {
+                            showCustomAlert('โปรดระบุราคาขายเริ่มต้นที่ถูกต้อง (ต้องไม่ติดลบ)');
+                            return;
+                        }
+
+                        if (id) {
+                            await setDoc(doc(recipesColRef, id), { finishedGoodName, ingredients, sellingPricePerUnit });
+                        } else {
+                            await addDoc(recipesColRef, { finishedGoodName, ingredients, sellingPricePerUnit });
+                        }
+
+                        recipeForm.reset();
+                        recipeIdInput.value = '';
+                        finishedGoodNameInput.value = '';
+                        ingredientsContainer.innerHTML = '';
+                        recipeFormButtonText.textContent = 'เพิ่มสูตร';
+                    }
+                    catch (error) {
+                        console.error("Error saving recipe:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการบันทึกสูตร: " + error.message);
+                    }
+                });
+            } else {
+                console.error("recipeForm not found. Event listener not attached.");
+            }
+
+            // Add Ingredient Button
+            if (addIngredientButton) {
+                addIngredientButton.addEventListener('click', () => addIngredientInput());
+            } else {
+                console.error("addIngredientButton not found. Event listener not attached.");
+            }
+
+
+            // Order Form submission (Admin App - to manually add/edit orders, or process incoming)
+            if (orderForm) {
+                orderForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+
+                    const customerName = customerNameInput.value.trim();
+                    const recipeId = orderFinishedGoodSelect.value;
+                    const quantitySold = parseFloat(orderQuantityInput.value);
+                    const sellingPricePerUnit = parseFloat(orderSellingPricePerUnitInput.value);
+                    const paymentMethod = paymentMethodSelect.value;
+                    const bankName = bankNameInput.value.trim();
+                    const accountNumber = accountNumberInput.value.trim();
+
+                    if (recipeId === '' || isNaN(quantitySold) || quantitySold <= 0) {
+                        showCustomAlert('โปรดเลือกสินค้าสำเร็จรูปและกรอกจำนวนที่ถูกต้อง (ต้องเป็นค่าบวก)');
+                        return;
+                    }
+                    if (isNaN(sellingPricePerUnit) || sellingPricePerUnit < 0) {
+                        showCustomAlert('โปรดกรอกราคาขายที่ถูกต้อง (ต้องไม่ติดลบ)');
+                        return;
+                    }
+                    if (paymentMethod === 'โอนเงิน' && (bankName === '' || accountNumber === '')) {
+                        showCustomAlert('โปรดกรอกรายละเอียดการโอนเงินให้ครบถ้วน');
+                        return;
+                    }
+
+                    const recipe = recipes.find(r => r.id === recipeId);
+                    if (!recipe) {
+                        showCustomAlert('ไม่พบสูตรสินค้าสำเร็จรูปที่เลือก');
+                        return;
+                    }
+
+                    let canFulfill = true;
+                    let missingMaterials = [];
+                    let totalCostOfOrder = 0; // This will be calculated for manual orders
+                    
+                    // IMPORTANT: When manually adding an order via the admin panel,
+                    // we assume only base recipe ingredients are deducted for stock.
+                    // If customizations were to be deducted, this form would need UI for them.
+                    let updatedRawMaterialsTemp = JSON.parse(JSON.stringify(rawMaterials)); // Deep copy to simulate deduction
+
+                    // First, check if there's enough raw material for all ingredients
+                    for (const ingredient of recipe.ingredients) {
+                        const rawMaterial = updatedRawMaterialsTemp.find(m => m.id === ingredient.rawMaterialId);
+                        const requiredAmount = ingredient.quantityNeeded * quantitySold;
+                        if (!rawMaterial || (rawMaterial.currentQuantity || 0) < requiredAmount) { // Use currentQuantity
+                            canFulfill = false;
+                            missingMaterials.push(rawMaterial ? rawMaterial.name : `Unknown Raw Material (ID: ${ingredient.rawMaterialId})`);
+                        }
+                    }
+
+                    if (!canFulfill) {
+                        showCustomAlert(`ไม่สามารถบันทึกออเดอร์ได้: วัตถุดิบไม่เพียงพอสำหรับ ${missingMaterials.join(', ')}`);
+                        return;
+                    }
+
+                    try {
+                        // If everything is available, deduct from stock and calculate total cost
+                        for (const ingredient of recipe.ingredients) {
+                            const rawMaterial = rawMaterials.find(m => m.id === ingredient.rawMaterialId); // Get actual live data
+                            const requiredAmount = ingredient.quantityNeeded * quantitySold;
+                            
+                            // Calculate total cost for the order based on average cost (from ingredient.costPerUnit)
+                            totalCostOfOrder += (ingredient.costPerUnit || 0) * requiredAmount; // Use ingredient.costPerUnit from recipe
+
+                            // Update Firestore for each raw material (deducting currentQuantity)
+                            const rawMaterialsColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterials`);
+                            await updateDoc(doc(rawMaterialsColRef, rawMaterial.id), {
+                                currentQuantity: (rawMaterial.currentQuantity || 0) - requiredAmount // Deduct from currentQuantity
+                            });
+                        }
+
+                        const totalRevenueOfOrder = sellingPricePerUnit * quantitySold;
+
+                        // Generate Invoice Number (YYYYMMDD-XXXX format)
+                        const today = new Date();
+                        const year = today.getFullYear();
+                        const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+                        const day = String(today.getDate()).padStart(2, '0');
+                        const datePrefix = `${year}${month}${day}`;
+
+                        const ordersColRef = collection(db, `artifacts/${appId}/public_orders`);
+                        // Query for orders on the same day to get the last sequence number
+                        const q = query(ordersColRef, where("datePrefix", "==", datePrefix)); // Using datePrefix for filtering
+                        const querySnapshot = await getDocs(q);
+                        
+                        let maxSequence = 0;
+                        querySnapshot.forEach(doc => {
+                            const data = doc.data();
+                            if (data.invoiceNo) {
+                                const parts = data.invoiceNo.split('-');
+                                if (parts.length === 2 && parts[0] === datePrefix) {
+                                    const sequence = parseInt(parts[1], 10);
+                                    if (!isNaN(sequence) && sequence > maxSequence) {
+                                        maxSequence = sequence;
+                                    }
+                                }
+                            }
+                        });
+                        const newSequence = String(maxSequence + 1).padStart(4, '0'); // Ensure 4 digits
+                        const invoiceNo = `${datePrefix}-${newSequence}`;
+
+                        // Add the order record to Firestore
+                        await addDoc(ordersColRef, {
+                            invoiceNo: invoiceNo, // New invoice number
+                            orderId: null, // This order was manually created, no customer_form_orderId
+                            orderDate: new Date().toISOString(), // Use orderDate consistent with customer form
+                            datePrefix: datePrefix, // Store date prefix for efficient querying
+                            customerName: customerName,
+                            // Simplification: In admin app, we're not adding address/phone for manual orders right now.
+                            // If needed, fields for them should be added to this form.
+                            items: [{ // Wrap in an array for consistency with customer form order structure
+                                recipeId: recipe.id,
+                                finishedGoodName: recipe.finishedGoodName,
+                                quantity: quantitySold,
+                                baseSellingPricePerUnit: sellingPricePerUnit,
+                                extraCustomizationSellingPrice: 0, // No extra selling price customization for manual admin orders
+                                finalSellingPricePerUnit: sellingPricePerUnit,
+                                customizations: {} // Empty customizations for manual admin orders
+                            }],
+                            totalOrderValue: totalRevenueOfOrder, // Use totalOrderValue consistent with customer form
+                            totalCost: totalCostOfOrder, // Pass the calculated total cost
+                            paymentMethod: paymentMethod,
+                            bankName: bankName,
+                            accountNumber: accountNumber,
+                            status: 'completed', // Manual orders are considered completed by default
+                            isCancelled: false, 
+                            cancellationDate: null,
+                            isPaid: false, // Default to unpaid for new orders
+                            paymentDate: null,
+                            paymentSlipUrl: null,
+                            userId: userId // Store userId for security rules
+                        });
+
+                        // Clear form
+                        orderForm.reset();
+                        populateOrderFinishedGoodSelect();
+                        paymentMethodSelect.value = 'เงินสด'; // Reset payment method
+                        transferDetailsDiv.classList.add('hidden'); // Hide transfer details
+                        bankNameInput.removeAttribute('required');
+                        accountNumberInput.removeAttribute('required');
+                        showCustomAlert('บันทึกออเดอร์เรียบร้อยแล้ว!');
+                    } catch (error) {
+                        console.error("Error saving order or updating raw materials:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการบันทึกออเดอร์หรือตัดสต็อก: " + error.message);
+                    }
+                });
+            } else {
+                console.error("orderForm not found. Event listener not attached.");
+            }
+        }
+        
+        // Call setupEventListeners after the DOM is fully loaded.
+        window.addEventListener('DOMContentLoaded', setupEventListeners);
+
+        // Call initFirebase on window load (This is still where Firebase initialization begins)
+        window.onload = initFirebase;
+
+        /**
+         * Renders all raw materials in the table.
+         */
+        function renderRawMaterials() {
+            rawMaterialListTableBody.innerHTML = ''; // Clear existing rows
+
+            if (rawMaterials.length === 0) {
+                noRawMaterialsMessage.classList.remove('hidden');
+            } else {
+                noRawMaterialsMessage.classList.add('hidden');
+            }
+
+            rawMaterials.forEach(material => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition duration-100 ease-in-out';
+
+                // Use currentQuantity and averageCostPerUnit
+                const totalValue = ((material.currentQuantity || 0) * (material.averageCostPerUnit || 0)).toFixed(2);
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${material.name}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${(material.currentQuantity || 0).toFixed(4)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${(material.averageCostPerUnit || 0).toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                        ${totalValue} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-center space-x-2">
+                        <button class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-indigo-200"
+                                data-action="editRawMaterial" data-id="${material.id}">
+                            แก้ไข
+                        </button>
+                        <button class="text-red-600 hover:text-red-900 bg-red-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-red-200"
+                                data-action="deleteRawMaterial" data-id="${material.id}">
+                            ลบ
+                        </button>
+                    </td>
+                `;
+                rawMaterialListTableBody.appendChild(row);
+            });
+            // Attach event listeners for dynamically added buttons
+            rawMaterialListTableBody.querySelectorAll('[data-action="editRawMaterial"]').forEach(button => {
+                button.addEventListener('click', (e) => editRawMaterial(e.target.dataset.id));
+            });
+            rawMaterialListTableBody.querySelectorAll('[data-action="deleteRawMaterial"]').forEach(button => {
+                button.addEventListener('click', (e) => deleteRawMaterial(e.target.dataset.id));
+            });
+
+            renderRecipes(); // Re-render recipes as raw material prices might affect recipe costs
+            populateOrderFinishedGoodSelect(); // Update select options for orders
+            populateInboundRawMaterialSelect(); // New: Update options for inbound form
+            populateLinkedRawMaterialSelect(); // Update options for customization options form
+        }
+
+        /**
+         * Populates the raw material form for editing.
+         * @param {string} id - The Firestore document ID of the raw material to edit.
+         */
+        function editRawMaterial(id) {
+            const material = rawMaterials.find(m => m.id === id);
+            if (material) {
+                rawMaterialIdInput.value = material.id;
+                rawMaterialNameInput.value = material.name;
+                rawMaterialQuantityInput.value = material.currentQuantity || 0; // Use currentQuantity
+                rawMaterialPriceInput.value = material.averageCostPerUnit || 0; // Use averageCostPerUnit
+                rawMaterialFormButtonText.textContent = 'บันทึกการแก้ไขวัตถุดิบ';
+            }
+        }
+
+        /**
+         * Deletes a raw material.
+         * @param {string} id - The Firestore document ID of the raw material to delete.
+         */
+        function deleteRawMaterial(id) {
+            showCustomConfirm('คุณต้องการลบวัตถุดิบนี้ใช่หรือไม่? การลบนี้จะรวมถึงประวัติการรับเข้าวัตถุดิบด้วย', async (confirmed) => {
+                if (confirmed) {
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+                    // Check if this raw material is used in any recipe
+                    const isUsedInRecipe = recipes.some(recipe =>
+                        recipe.ingredients.some(ingredient => ingredient.rawMaterialId === id)
+                    );
+
+                    // Check if this raw material is linked to any customization option
+                    const isUsedInCustomizationOption = customizationOptions.some(option =>
+                        option.linkedRawMaterialId === id
+                    );
+
+
+                    if (isUsedInRecipe) {
+                        showCustomAlert('ไม่สามารถลบวัตถุดิบนี้ได้ เนื่องจากมีการใช้งานอยู่ในสูตรการผลิต');
+                        return;
+                    }
+                    if (isUsedInCustomizationOption) {
+                        showCustomAlert('ไม่สามารถลบวัตถุดิบนี้ได้ เนื่องจากมีการเชื่อมโยงอยู่ในตัวเลือกปรับแต่ง');
+                        return;
+                    }
+
+                    try {
+                        const rawMaterialsColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterials`);
+                        await deleteDoc(doc(rawMaterialsColRef, id));
+
+                        // Delete related inbound records (New)
+                        const rawMaterialInboundColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterialInbound`);
+                        const q = query(rawMaterialInboundColRef, where("rawMaterialId", "==", id));
+                        const querySnapshot = await getDocs(q);
+                        querySnapshot.forEach(async (docToDelete) => {
+                            await deleteDoc(doc(rawMaterialInboundColRef, docToDelete.id));
+                        });
+
+                        // Clear form if the deleted item was being edited
+                        if (rawMaterialIdInput.value === id) {
+                            rawMaterialForm.reset();
+                            rawMaterialIdInput.value = '';
+                            rawMaterialFormButtonText.textContent = 'เพิ่มวัตถุดิบ';
+                        }
+                    } catch (error) {
+                        console.error("Error deleting raw material or related inbound records:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการลบวัตถุดิบ: " + error.message);
+                    }
+                }
+            });
+        }
+
+        // --- Raw Material Inbound Functions ---
+
+        /**
+         * Populates the dropdown list for raw materials in the inbound form.
+         */
+        function populateInboundRawMaterialSelect() {
+            inboundRawMaterialSelect.innerHTML = '<option value="">เลือกวัตถุดิบ</option>';
+            rawMaterials.forEach(material => {
+                const option = document.createElement('option');
+                option.value = material.id;
+                option.textContent = material.name;
+                inboundRawMaterialSelect.appendChild(option);
+            });
+        }
+
+        /**
+         * Renders all raw material inbound records in the table.
+         */
+        function renderRawMaterialInboundHistory() {
+            rawMaterialInboundListTableBody.innerHTML = ''; // Clear existing rows
+
+            if (rawMaterialsInbound.length === 0) {
+                noRawMaterialInboundsMessage.classList.remove('hidden');
+            } else {
+                noRawMaterialInboundsMessage.classList.add('hidden');
+            }
+
+            rawMaterialsInbound.forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition duration-100 ease-in-out';
+
+                const formattedDate = new Date(record.purchaseDate).toLocaleDateString('th-TH', {
+                    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${formattedDate}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${record.rawMaterialName}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${record.quantityPurchased.toFixed(4)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${record.pricePerUnitPurchased.toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                        ${record.totalCost.toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button class="text-red-600 hover:text-red-900 bg-red-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-red-200"
+                                data-action="deleteRawMaterialInbound" data-id="${record.id}">
+                            ลบ
+                        </button>
+                    </td>
+                `;
+                rawMaterialInboundListTableBody.appendChild(row);
+            });
+            rawMaterialInboundListTableBody.querySelectorAll('[data-action="deleteRawMaterialInbound"]').forEach(button => {
+                button.addEventListener('click', (e) => deleteRawMaterialInbound(e.target.dataset.id));
+            });
+        }
+
+        /**
+         * Deletes a raw material inbound record and adjusts stock.
+         * @param {string} id - The Firestore document ID of the inbound record to delete.
+         */
+        async function deleteRawMaterialInbound(id) {
+            showCustomConfirm('คุณต้องการลบรายการรับเข้าวัตถุดิบนี้หรือไม่? การลบจะย้อนกลับการปรับสต็อกและต้นทุนเฉลี่ยด้วย', async (confirmed) => {
+                if (confirmed) {
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+                    try {
+                        const recordToDelete = rawMaterialsInbound.find(r => r.id === id);
+                        if (!recordToDelete) {
+                            showCustomAlert('ไม่พบรายการรับเข้าวัตถุดิบนี้');
+                            return;
+                        }
+
+                        const rawMaterialToUpdate = rawMaterials.find(m => m.id === recordToDelete.rawMaterialId);
+                        if (!rawMaterialToUpdate) {
+                            showCustomAlert('ไม่พบวัตถุดิบหลักที่เกี่ยวข้อง');
+                            // Still delete the inbound record even if main raw material is missing
+                            await deleteDoc(doc(collection(db, `artifacts/${appId}/users/${userId}/rawMaterialInbound`), id));
+                            return;
+                        }
+
+                        const existingQuantity = rawMaterialToUpdate.currentQuantity || 0;
+                        const existingAverageCost = rawMaterialToUpdate.averageCostPerUnit || 0;
+                        const inboundQuantity = recordToDelete.quantityPurchased;
+                        const inboundPrice = recordToDelete.pricePerUnitPurchased;
+
+                        // Calculate new quantity after reversing this inbound
+                        const newTotalQuantity = existingQuantity - inboundQuantity;
+
+                        // Recalculate average cost, handling edge cases
+                        let newAverageCost = 0;
+                        if (newTotalQuantity > 0) {
+                            const totalValueOfRemaining = (existingQuantity * existingAverageCost) - (inboundQuantity * inboundPrice);
+                            newAverageCost = totalValueOfRemaining / newTotalQuantity;
+                        }
+
+                        // Update raw material in Firestore
+                        const rawMaterialsColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterials`);
+                        await updateDoc(doc(rawMaterialsColRef, rawMaterialToUpdate.id), {
+                            currentQuantity: newTotalQuantity,
+                            averageCostPerUnit: newAverageCost
+                        });
+
+                        // --- NEW LOGIC TO UPDATE LINKED CUSTOMIZATION OPTIONS ---
+                        const publicCustomizationOptionsColRef = collection(db, `artifacts/${appId}/public/data/customization_options`);
+                        const linkedOptionsQuery = query(publicCustomizationOptionsColRef, where("linkedRawMaterialId", "==", rawMaterialToUpdate.id));
+                        const linkedOptionsSnapshot = await getDocs(linkedOptionsQuery);
+
+                        const batch = writeBatch(db); 
+                        linkedOptionsSnapshot.forEach((docSnap) => {
+                            const optionRef = doc(publicCustomizationOptionsColRef, docSnap.id);
+                            batch.update(optionRef, {
+                                currentAverageCost: newAverageCost, 
+                                linkedRawMaterialName: rawMaterialToUpdate.name 
+                            });
+                        });
+                        await batch.commit();
+                        // --- END NEW LOGIC ---
+
+                        // Delete the inbound record
+                        const rawMaterialInboundColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterialInbound`);
+                        await deleteDoc(doc(rawMaterialInboundColRef, id));
+
+                        showCustomAlert('ลบรายการรับเข้าและปรับสต็อก/ต้นทุนเฉลี่ยเรียบร้อยแล้ว!');
+                    } catch (error) {
+                        console.error("Error deleting raw material inbound record and adjusting stock:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการลบรายการรับเข้า: " + error.message);
+                    }
+                }
+            });
+        }
+
+        // --- Recipe Management Functions ---
+
+        /**
+         * Adds an input field set for an ingredient to the recipe form.
+         * @param {string} [rawMaterialId] - Pre-selected raw material ID for editing.
+         * @param {number} [quantity] - Pre-filled quantity for editing.
+         */
+        function addIngredientInput(rawMaterialId = '', quantity = '') {
+            const ingredientDiv = document.createElement('div');
+            ingredientDiv.className = 'flex flex-col sm:flex-row gap-2 items-end p-2 border border-gray-200 rounded-md bg-white shadow-sm';
+
+            const rawMaterialOptions = rawMaterials.map(material =>
+                `<option value="${material.id}" ${rawMaterialId === material.id ? 'selected' : ''}>${material.name}</option>`
+            ).join('');
+
+            ingredientDiv.innerHTML = `
+                <div class="flex-grow w-full">
+                    <label class="block text-sm font-medium text-gray-700">วัตถุดิบ:</label>
+                    <select class="ingredient-raw-material-id mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" required>
+                        <option value="">เลือกวัตถุดิบ</option>
+                        ${rawMaterialOptions}
+                    </select>
+                </div>
+                <div class="w-full sm:w-auto">
+                    <label class="block text-sm font-medium text-gray-700">จำนวนที่ใช้:</label>
+                    <input type="number" value="${quantity}" placeholder="จำนวน" min="0" step="0.0001" required
+                           class="ingredient-quantity mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
+                </div>
+                <button type="button" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-150 ease-in-out shadow-sm self-center sm:self-end"
+                        data-action="removeIngredientInput">
+                    ลบ
+                </button>
+            `;
+            ingredientsContainer.appendChild(ingredientDiv);
+
+            // Attach event listener to the dynamically created remove button
+            ingredientDiv.querySelector('[data-action="removeIngredientInput"]').addEventListener('click', (e) => {
+                e.target.closest('div').remove();
+            });
+        }
+
+        /**
+         * Calculates the total cost of a single unit of a finished good based on its recipe.
+         * This function is used for internal recipe management cost display.
+         * @param {Object} recipe - The recipe object.
+         * @returns {number | string} The calculated cost as a fixed string, or 'N/A' if any raw material is not found.
+         */
+        function calculateRecipeCost(recipe) {
+            let totalCost = 0;
+            let isValid = true;
+            if (!recipe.ingredients) { 
+                return 'N/A';
+            }
+            // Iterate through ingredients stored in the recipe (which include costPerUnit)
+            recipe.ingredients.forEach(ingredient => { 
+                const rawMaterial = rawMaterials.find(m => m.id === ingredient.rawMaterialId);
+                if (rawMaterial) {
+                    totalCost += (rawMaterial.averageCostPerUnit || 0) * ingredient.quantityNeeded;
+                } else {
+                    isValid = false;
+                }
+            });
+            return isValid ? totalCost.toFixed(2) : 'N/A'; // Return as fixed string or N/A
+        }
+
+        /**
+         * Renders all recipes in the recipe table.
+         */
+        function renderRecipes() {
+            recipeListTableBody.innerHTML = '';
+
+            if (recipes.length === 0) {
+                noRecipesMessage.classList.remove('hidden');
+            } else {
+                noRecipesMessage.classList.add('hidden');
+            }
+
+            recipes.forEach(recipe => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition duration-100 ease-in-out';
+
+                const ingredientsHtml = recipe.ingredients && recipe.ingredients.length > 0 ? recipe.ingredients.map(ing => {
+                    const material = rawMaterials.find(m => m.id === ing.rawMaterialId);
+                    // Determine if stock is insufficient and apply red color class
+                    const isInsufficient = material && (material.currentQuantity || 0) < ing.quantityNeeded;
+                    const textColorClass = isInsufficient ? 'text-red-500' : 'text-gray-700';
+                    const unit = material ? (material.name.includes('(กิโลกรัม)') ? 'กก.' : (material.name.includes('(ลิตร)') ? 'ลิตร' : (material.name.includes('(กรัม)') ? 'กรัม' : 'หน่วย'))) : '';
+
+                    return `<span class="block ${textColorClass}">${material ? material.name.split(' ')[0] : 'Unknown'} (${ing.quantityNeeded.toFixed(4)} ${unit})</span>`;
+                }).join('') : 'ไม่มีส่วนผสม';
+
+                const cost = calculateRecipeCost(recipe);
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${recipe.finishedGoodName}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        ${ingredientsHtml}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                        ${cost !== 'N/A' ? `${cost} บาท` : '<span class="text-red-500">วัตถุดิบไม่ครบ</span>'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                        ${(recipe.sellingPricePerUnit || 0).toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-center space-x-2">
+                        <button class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-indigo-200"
+                                data-action="editRecipe" data-id="${recipe.id}">
+                            แก้ไข
+                        </button>
+                        <button class="text-red-600 hover:text-red-900 bg-red-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-red-200"
+                                data-action="deleteRecipe" data-id="${recipe.id}">
+                            ลบ
+                        </button>
+                    </td>
+                `;
+                recipeListTableBody.appendChild(row);
+            });
+            recipeListTableBody.querySelectorAll('[data-action="editRecipe"]').forEach(button => {
+                button.addEventListener('click', (e) => editRecipe(e.target.dataset.id));
+            });
+            recipeListTableBody.querySelectorAll('[data-action="deleteRecipe"]').forEach(button => {
+                button.addEventListener('click', (e) => deleteRecipe(e.target.dataset.id));
+            });
+            populateOrderFinishedGoodSelect(); // Ensure dropdown for orders is updated
+        }
+
+        /**
+         * Handles the submission of the recipe form (add/edit).
+         */
+        recipeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+
+            const id = recipeIdInput.value;
+            const finishedGoodName = finishedGoodNameInput.value.trim();
+            const ingredientInputs = ingredientsContainer.querySelectorAll('.ingredient-raw-material-id');
+            const quantityInputs = ingredientsContainer.querySelectorAll('.ingredient-quantity');
+
+            if (finishedGoodName === '') {
+                showCustomAlert('โปรดกรอกชื่อสินค้าสำเร็จรูป');
+                return;
+            }
+
+            const ingredients = [];
+            let isValidIngredients = true;
+            if (ingredientInputs.length === 0) {
+                showCustomAlert('โปรดเพิ่มส่วนผสมอย่างน้อยหนึ่งรายการ');
+                return;
+            }
+
+            ingredientInputs.forEach((select, index) => {
+                const rawMaterialId = select.value;
+                const quantityNeeded = parseFloat(quantityInputs[index].value);
+
+                // Find the raw material to get its current averageCostPerUnit
+                const rawMaterial = rawMaterials.find(m => m.id === rawMaterialId);
+                const costPerUnit = rawMaterial ? rawMaterial.averageCostPerUnit || 0 : 0; // Get average cost or 0 if not found
+
+
+                if (rawMaterialId === '' || isNaN(quantityNeeded) || quantityNeeded < 0) {
+                    isValidIngredients = false;
+                    showCustomAlert('โปรดเลือกวัตถุดิบและกรอกจำนวนที่ใช้ให้ถูกต้อง (ต้องไม่ติดลบ)');
+                    return;
+                }
+                ingredients.push({ rawMaterialId, quantityNeeded, costPerUnit }); // Store costPerUnit
+            });
+
+            if (!isValidIngredients) {
+                return; // Stop if any ingredient input is invalid
+            }
+
+            try {
+                // Updated to save recipes to user's recipes
+                const recipesColRef = collection(db, `artifacts/${appId}/users/${userId}/recipes`);
+                const sellingPricePerUnit = parseFloat(prompt("โปรดระบุราคาขายเริ่มต้นต่อหน่วยสำหรับเมนูนี้ (บาท):"));
+                if (isNaN(sellingPricePerUnit) || sellingPricePerUnit < 0) {
+                    showCustomAlert('โปรดระบุราคาขายเริ่มต้นที่ถูกต้อง (ต้องไม่ติดลบ)');
+                    return;
+                }
+
+                if (id) {
+                    await setDoc(doc(recipesColRef, id), { finishedGoodName, ingredients, sellingPricePerUnit });
+                } else {
+                    await addDoc(recipesColRef, { finishedGoodName, ingredients, sellingPricePerUnit });
+                }
+
+                recipeForm.reset();
+                recipeIdInput.value = '';
+                finishedGoodNameInput.value = '';
+                ingredientsContainer.innerHTML = '';
+                recipeFormButtonText.textContent = 'เพิ่มสูตร';
+            }
+            catch (error) {
+                console.error("Error saving recipe:", error);
+                showCustomAlert("เกิดข้อผิดพลาดในการบันทึกสูตร: " + error.message);
+            }
+        });
+
+        /**
+         * Populates the recipe form for editing.
+         * @param {string} id - The Firestore document ID of the recipe to edit.
+         */
+        function editRecipe(id) {
+            const recipe = recipes.find(r => r.id === id);
+            if (recipe) {
+                recipeIdInput.value = recipe.id;
+                finishedGoodNameInput.value = recipe.finishedGoodName;
+                ingredientsContainer.innerHTML = ''; // Clear existing inputs
+                // Ensure ingredients array exists and is iterable
+                if (recipe.ingredients && recipe.ingredients.length > 0) {
+                    recipe.ingredients.forEach(ingredient => {
+                        addIngredientInput(ingredient.rawMaterialId, ingredient.quantityNeeded);
+                    });
+                }
+                recipeFormButtonText.textContent = 'บันทึกการแก้ไขสูตร';
+            }
+        }
+
+        /**
+         * Deletes a recipe.
+         * @param {string} id - The Firestore document ID of the recipe to delete.
+         */
+        function deleteRecipe(id) {
+            showCustomConfirm('คุณต้องการลบสูตรการผลิตนี้ใช่หรือไม่?', async (confirmed) => {
+                if (confirmed) {
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+                    try {
+                        // Updated to delete from user's recipes
+                        const recipesColRef = collection(db, `artifacts/${appId}/users/${userId}/recipes`);
+                        await deleteDoc(doc(recipesColRef, id));
+                        // Clear form if the deleted item was being edited
+                        if (recipeIdInput.value === id) {
+                            recipeForm.reset();
+                            recipeIdInput.value = '';
+                            finishedGoodNameInput.value = '';
+                            ingredientsContainer.innerHTML = '';
+                            recipeFormButtonText.textContent = 'เพิ่มสูตร';
+                        }
+                    } catch (error) {
+                        console.error("Error deleting recipe:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการลบสูตร: " + error.message);
+                    }
+                }
+            });
+        }
+
+        // --- Order/Sales Management Functions ---
+
+        /**
+         * Populates the dropdown list for finished goods in the order/sales form.
+         */
+        function populateOrderFinishedGoodSelect() {
+            orderFinishedGoodSelect.innerHTML = '<option value="">เลือกสินค้าสำเร็จรูป</option>';
+            // Uses 'recipes' array which is now from user's recipes
+            recipes.forEach(recipe => {
+                const option = document.createElement('option');
+                option.value = recipe.id;
+                option.textContent = recipe.finishedGoodName;
+                orderFinishedGoodSelect.appendChild(option);
+            });
+        }
+
+        /**
+         * Calculates the total cost of an order based on current raw material costs and customization options.
+         * This function provides a real-time cost calculation for display in the admin app.
+         * @param {Object} order - The order object.
+         * @returns {number} The calculated total cost.
+         */
+        function calculateOrderCostForDisplay(order) {
+            let totalCalculatedCost = 0;
+
+            if (!order.items || !Array.isArray(order.items)) {
+                return 0;
+            }
+
+            order.items.forEach(orderItem => {
+                let itemBaseCost = 0;
+
+                // Calculate base recipe cost from currently known raw materials
+                const recipe = recipes.find(r => r.id === orderItem.recipeId);
+                if (recipe && recipe.ingredients && Array.isArray(recipe.ingredients)) {
+                    recipe.ingredients.forEach(ingredient => {
+                        const rawMaterial = rawMaterials.find(rm => rm.id === ingredient.rawMaterialId);
+                        if (rawMaterial) {
+                            itemBaseCost += (rawMaterial.averageCostPerUnit || 0) * ingredient.quantityNeeded;
+                        } else {
+                            console.warn(`Raw material ${ingredient.rawMaterialId} for recipe ${recipe.finishedGoodName} not found. Base cost calculation might be inaccurate.`);
+                        }
+                    });
+                } else {
+                    console.warn(`Recipe ${orderItem.recipeId} not found or has no ingredients. Cannot calculate base cost.`);
+                }
+
+                let itemCustomizationCost = 0;
+                // Calculate customization costs from currently known customization options
+                if (orderItem.customizations) {
+                    if (orderItem.customizations.mainIngredients && Array.isArray(orderItem.customizations.mainIngredients)) {
+                        orderItem.customizations.mainIngredients.forEach(custIng => {
+                            const option = customizationOptions.find(opt => opt.id === custIng.id);
+                            if (option) {
+                                itemCustomizationCost += (option.currentAverageCost || 0);
+                            } else {
+                                console.warn(`Customization mainIngredient ID ${custIng.id} not found in current options.`);
+                            }
+                        });
+                    }
+                    if (orderItem.customizations.vegetables && Array.isArray(orderItem.customizations.vegetables)) {
+                        orderItem.customizations.vegetables.forEach(custVeg => {
+                            const option = customizationOptions.find(opt => opt.id === custVeg.id);
+                            if (option) {
+                                itemCustomizationCost += (option.currentAverageCost || 0);
+                            } else {
+                                console.warn(`Customization vegetable ID ${custVeg.id} not found in current options.`);
+                            }
+                        });
+                    }
+                    // If soup base or spiciness had associated costs based on raw materials, they would be added here
+                }
+
+                totalCalculatedCost += (itemBaseCost + itemCustomizationCost) * (orderItem.quantity || 1);
+            });
+
+            return totalCalculatedCost;
+        }
+
+        /**
+         * Generates and assigns a unique invoice number to an order document.
+         * This function should be called for orders that don't yet have an invoice number.
+         * @param {object} orderRef - The Firestore document reference for the order.
+         * @param {string} orderDateIso - The ISO string of the order date to use for the date prefix.
+         */
+        async function generateAndAssignInvoiceNo(orderRef, orderDateIso) {
+            if (!db) {
+                console.error("Firestore DB is not initialized.");
+                return;
+            }
+
+            const today = new Date(orderDateIso); // Use the actual order date
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const datePrefix = `${year}${month}${day}`;
+
+            const ordersColRef = collection(db, `artifacts/${appId}/public_orders`);
+            // Query for orders on the same day to get the last sequence number
+            const q = query(ordersColRef, where("datePrefix", "==", datePrefix)); // Using datePrefix for filtering
+            const querySnapshot = await getDocs(q);
+            
+            let maxSequence = 0;
+            querySnapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.invoiceNo) {
+                    const parts = data.invoiceNo.split('-');
+                    if (parts.length === 2 && parts[0] === datePrefix) {
+                        const sequence = parseInt(parts[1], 10);
+                        if (!isNaN(sequence) && sequence > maxSequence) {
+                            maxSequence = sequence;
+                        }
+                    }
+                }
+            });
+            const newSequence = String(maxSequence + 1).padStart(4, '0'); // Ensure 4 digits
+            const invoiceNo = `${datePrefix}-${newSequence}`;
+
+            // Update the specific order document
+            try {
+                await updateDoc(orderRef, { invoiceNo: invoiceNo, datePrefix: datePrefix });
+                console.log(`Assigned invoiceNo: ${invoiceNo} to order ${orderRef.id}`);
+            } catch (error) {
+                console.error(`Error assigning invoiceNo to order ${orderRef.id}:`, error);
+            }
+        }
+
+
+        /**
+         * Renders all order/sales records in the order history table.
+         */
+        function renderOrders() {
+            orderListTableBody.innerHTML = ''; // Clear existing rows
+
+            if (orders.length === 0) {
+                noOrdersMessage.classList.remove('hidden');
+            } else {
+                noOrdersMessage.classList.add('hidden');
+            }
+
+            orders.forEach(order => {
+                // Check if invoiceNo is missing. If so, generate and assign it in background.
+                if (!order.invoiceNo) {
+                    const orderRef = doc(collection(db, `artifacts/${appId}/public_orders`), order.id);
+                    // Pass the existing orderDate or default to current if not available for older orders
+                    const orderDateForInvoice = order.orderDate || new Date().toISOString();
+                    generateAndAssignInvoiceNo(orderRef, orderDateForInvoice);
+                }
+
+                const row = document.createElement('tr');
+                row.className = `hover:bg-gray-50 transition duration-100 ease-in-out 
+                    ${order.isCancelled ? 'bg-red-50 opacity-70 line-through' : ''}
+                    ${!order.isCancelled && !order.isPaid ? 'bg-yellow-50' : ''}
+                `;
+
+                // Use order.orderDate consistent with customer form, fallback to order.date if older format
+                const orderDate = order.orderDate ? new Date(order.orderDate) : new Date(order.date);
+                const formattedDate = orderDate.toLocaleDateString('th-TH', {
+                    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+
+                // Extract first item for display in main table
+                const firstItem = order.items && order.items.length > 0 ? order.items[0] : null;
+                const productName = firstItem ? firstItem.finishedGoodName : 'N/A';
+                const quantity = firstItem ? firstItem.quantity.toFixed(4) : 'N/A';
+                const totalRevenue = order.totalOrderValue || 0; // Use totalOrderValue
+                // Calculate total cost dynamically based on current raw material and customization option costs
+                const calculatedTotalCost = calculateOrderCostForDisplay(order); 
+
+                const paymentStatusText = order.isCancelled ? 'ยกเลิกแล้ว' : (order.isPaid ? 'ชำระแล้ว' : 'ยังไม่ชำระ');
+                const paymentStatusClass = order.isCancelled ? 'text-red-500' : (order.isPaid ? 'text-green-600 font-semibold' : 'text-orange-500 font-semibold');
+                const paymentDateText = order.isPaid && order.paymentDate ? new Date(order.paymentDate).toLocaleDateString('th-TH') : '-';
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${order.invoiceNo || (order.orderId ? `Cust-${order.orderId.substring(0,8)}` : 'กำลังสร้างเลขที่บิล...')}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${formattedDate}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${order.customerName || '-'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${productName} ${order.items && order.items.length > 1 ? `(+${order.items.length - 1} รายการ)` : ''}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${quantity}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                        ${calculatedTotalCost.toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                        ${totalRevenue.toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${paymentStatusClass}">
+                        ${paymentStatusText}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${paymentDateText}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-center space-x-2">
+                        <button class="text-blue-600 hover:text-blue-900 bg-blue-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-blue-200"
+                                data-action="showBillModal" data-id="${order.id}">
+                            ดูบิล
+                        </button>
+                        <button class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-indigo-200"
+                                data-action="showPaymentSlipModal" data-id="${order.id}">
+                            แนบ/ดูสลิป
+                        </button>
+                        ${!order.isCancelled ? `
+                            <button class="text-red-600 hover:text-red-900 bg-red-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-red-200"
+                                    data-action="cancelOrder" data-id="${order.id}">
+                                ยกเลิกบิล
+                            </button>
+                        ` : ''}
+                    </td>
+                `;
+                orderListTableBody.appendChild(row);
+            });
+            orderListTableBody.querySelectorAll('[data-action="showBillModal"]').forEach(button => {
+                button.addEventListener('click', (e) => showBillModal(e.target.dataset.id));
+            });
+            orderListTableBody.querySelectorAll('[data-action="cancelOrder"]').forEach(button => {
+                button.addEventListener('click', (e) => cancelOrder(e.target.dataset.id));
+            });
+            orderListTableBody.querySelectorAll('[data-action="showPaymentSlipModal"]').forEach(button => {
+                button.addEventListener('click', (e) => showPaymentSlipModal(e.target.dataset.id));
+            });
+        }
+
+        /**
+         * Cancels an order and reverts stock.
+         * @param {string} orderId - The Firestore document ID of the order to cancel.
+         */
+        async function cancelOrder(orderId) {
+            showCustomConfirm('คุณต้องการยกเลิกบิลนี้ใช่หรือไม่? การยกเลิกบิลจะคืนวัตถุดิบเข้าสต็อก', async (confirmed) => {
+                if (confirmed) {
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+                    try {
+                        const orderToCancel = orders.find(o => o.id === orderId);
+                        if (!orderToCancel) {
+                            showCustomAlert('ไม่พบข้อมูลบิลที่ต้องการยกเลิก');
+                            return;
+                        }
+                        if (orderToCancel.isCancelled) {
+                            showCustomAlert('บิลนี้ถูกยกเลิกไปแล้ว');
+                            return;
+                        }
+
+                        // Revert raw material stock for each item in the order
+                        const rawMaterialsColRef = collection(db, `artifacts/${appId}/users/${userId}/rawMaterials`);
+                        for (const orderItem of orderToCancel.items) {
+                            const recipe = recipes.find(r => r.id === orderItem.recipeId);
+                            if (recipe) {
+                                for (const ingredient of recipe.ingredients) {
+                                    const rawMaterial = rawMaterials.find(m => m.id === ingredient.rawMaterialId);
+                                    if (rawMaterial) {
+                                        const amountToReturn = ingredient.quantityNeeded * orderItem.quantity; // Use orderItem.quantity
+                                        await updateDoc(doc(rawMaterialsColRef, rawMaterial.id), {
+                                            currentQuantity: (rawMaterial.currentQuantity || 0) + amountToReturn // Add back to currentQuantity
+                                        });
+                                    } else {
+                                        console.warn(`Raw material ${ingredient.rawMaterialId} not found when cancelling order ${orderId}. Stock not fully reverted.`);
+                                        showCustomAlert(`คำเตือน: วัตถุดิบบางรายการไม่พบหรือไม่สามารถคืนเข้าสต็อกได้สำหรับบิลที่ยกเลิก`);
+                                    }
+                                }
+                            } else {
+                                console.warn(`Recipe ${orderItem.recipeId} not found for order ${orderId}. Cannot revert stock for this item.`);
+                                showCustomAlert(`คำเตือน: ไม่พบสูตรสำหรับสินค้า "${orderItem.finishedGoodName}" ในบิลนี้`);
+                            }
+
+                            // Also consider additional raw materials from customizations if they deducted from stock
+                            // Note: Current customer-order-form doesn't deduct stock for customizations, only calculates cost.
+                            // If stock deduction is implemented for customizations in customer-order-form,
+                            // this logic needs to be expanded here to revert that deduction.
+                        }
+
+
+                        // Update order status to cancelled
+                        const ordersColRef = collection(db, `artifacts/${appId}/public_orders`); // Updated to public_orders
+                        await updateDoc(doc(ordersColRef, orderId), {
+                            isCancelled: true,
+                            cancellationDate: new Date().toISOString(),
+                            status: 'cancelled', // Set status to cancelled
+                            isPaid: false, // Mark as unpaid if cancelled (or handle based on business logic)
+                            paymentDate: null,
+                            paymentSlipUrl: null
+                        });
+
+                        showCustomAlert('บิลถูกยกเลิกและวัตถุดิบถูกคืนเข้าสต็อกเรียบร้อยแล้ว!');
+                    } catch (error) {
+                        console.error("Error cancelling order:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการยกเลิกบิล: " + error.message);
+                    }
+                }
+            });
+        }
+
+        // --- Customization Options Functions (Now integrated into Raw Material Section) ---
+        /**
+         * Populates the dropdown list of raw materials for linking in the customization option form.
+         */
+        function populateLinkedRawMaterialSelect() {
+            linkedRawMaterialSelect.innerHTML = '<option value="">เลือกวัตถุดิบ</option>';
+            rawMaterials.forEach(material => {
+                const option = document.createElement('option');
+                option.value = material.id;
+                option.textContent = material.name;
+                linkedRawMaterialSelect.appendChild(option);
+            });
+        }
+
+        /**
+         * Handles form submission for adding/editing a customization option.
+         */
+        if (customizationOptionForm) {
+            customizationOptionForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+
+                const id = customizationOptionIdInput.value;
+                const name = customizationNameInput.value.trim();
+                const type = customizationTypeSelect.value;
+                const linkedRawMaterialId = linkedRawMaterialSelect.value;
+                const sellingPriceModifier = parseFloat(sellingPriceModifierInput.value);
+
+                if (name === '' || type === '' || linkedRawMaterialId === '' || isNaN(sellingPriceModifier) || sellingPriceModifier < 0) {
+                    showCustomAlert('โปรดกรอกข้อมูลตัวเลือกปรับแต่งให้ครบถ้วนและถูกต้อง');
+                    return;
+                }
+
+                // Get the current average cost of the linked raw material
+                const linkedMaterial = rawMaterials.find(m => m.id === linkedRawMaterialId);
+                const currentAverageCost = linkedMaterial ? linkedMaterial.averageCostPerUnit || 0 : 0;
+
+                try {
+                    // Collection path follows /public/data/ structure
+                    const customizationOptionsColRef = collection(db, `artifacts/${appId}/public/data/customization_options`);
+                    const dataToSave = {
+                        name,
+                        type,
+                        linkedRawMaterialId,
+                        linkedRawMaterialName: linkedMaterial ? linkedMaterial.name : 'Unknown', // Store name for display
+                        sellingPriceModifier,
+                        currentAverageCost // Store the snapshot of average cost
+                    };
+
+                    if (id) {
+                        await setDoc(doc(customizationOptionsColRef, id), dataToSave);
+                    } else {
+                        await addDoc(customizationOptionsColRef, dataToSave);
+                    }
+
+                    customizationOptionForm.reset();
+                    customizationOptionIdInput.value = '';
+                    customizationOptionFormButtonText.textContent = 'เพิ่มตัวเลือก';
+                    sellingPriceModifierInput.value = '0'; // Reset modifier
+                } catch (error) {
+                    console.error("Error saving customization option:", error);
+                    showCustomAlert("เกิดข้อผิดพลาดในการบันทึกตัวเลือกปรับแต่ง: " + error.message);
+                }
+            });
+        } else {
+            console.error("customizationOptionForm not found. Event listener not attached.");
+        }
+
+        /**
+         * Renders the list of customization options in the table.
+         */
+        function renderCustomizationOptions() {
+            customizationOptionListTableBody.innerHTML = '';
+
+            if (customizationOptions.length === 0) {
+                noCustomizationOptionsMessage.classList.remove('hidden');
+            } else {
+                noCustomizationOptionsMessage.classList.add('hidden');
+            }
+
+            customizationOptions.forEach(option => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition duration-100 ease-in-out';
+
+                const linkedMaterialName = rawMaterials.find(m => m.id === option.linkedRawMaterialId)?.name || 'ไม่พบ';
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${option.name}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${option.type === 'mainIngredient' ? 'วัตถุดิบหลัก' : (option.type === 'vegetable' ? 'ผัก' : 'ไม่ระบุ')}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${linkedMaterialName}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                        ${(option.currentAverageCost || 0).toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${(option.sellingPriceModifier || 0).toFixed(2)} บาท
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-center space-x-2">
+                        <button class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-indigo-200"
+                                data-action="editCustomizationOption" data-id="${option.id}">
+                            แก้ไข
+                        </button>
+                        <button class="text-red-600 hover:text-red-900 bg-red-100 p-2 rounded-md transition duration-150 ease-in-out hover:bg-red-200"
+                                data-action="deleteCustomizationOption" data-id="${option.id}">
+                            ลบ
+                        </button>
+                    </td>
+                `;
+                customizationOptionListTableBody.appendChild(row);
+            });
+            customizationOptionListTableBody.querySelectorAll('[data-action="editCustomizationOption"]').forEach(button => {
+                button.addEventListener('click', (e) => editCustomizationOption(e.target.dataset.id));
+            });
+            customizationOptionListTableBody.querySelectorAll('[data-action="deleteCustomizationOption"]').forEach(button => {
+                button.addEventListener('click', (e) => deleteCustomizationOption(e.target.dataset.id));
+            });
+        }
+
+        /**
+         * Populates the customization option form for editing.
+         * @param {string} id - The Firestore document ID of the customization option to edit.
+         */
+        function editCustomizationOption(id) {
+            const option = customizationOptions.find(o => o.id === id);
+            if (option) {
+                customizationOptionIdInput.value = option.id;
+                customizationNameInput.value = option.name;
+                customizationTypeSelect.value = option.type;
+                linkedRawMaterialSelect.value = option.linkedRawMaterialId;
+                sellingPriceModifierInput.value = option.sellingPriceModifier || 0;
+                customizationOptionFormButtonText.textContent = 'บันทึกการแก้ไขตัวเลือก';
+            }
+        }
+
+        /**
+         * Deletes a customization option.
+         * @param {string} id - The Firestore document ID of the customization option to delete.
+         */
+        function deleteCustomizationOption(id) {
+            showCustomConfirm('คุณต้องการลบตัวเลือกปรับแต่งนี้ใช่หรือไม่?', async (confirmed) => {
+                if (confirmed) {
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+                    try {
+                        // Corrected collection path for public data
+                        const customizationOptionsColRef = collection(db, `artifacts/${appId}/public/data/customization_options`);
+                        await deleteDoc(doc(customizationOptionsColRef, id));
+
+                        if (customizationOptionIdInput.value === id) {
+                            customizationOptionForm.reset();
+                            customizationOptionIdInput.value = '';
+                            customizationOptionFormButtonText.textContent = 'เพิ่มตัวเลือก';
+                            sellingPriceModifierInput.value = '0';
+                        }
+                    } catch (error) {
+                        console.error("Error deleting customization option:", error);
+                        showCustomAlert("เกิดข้อผิดพลาดในการลบตัวเลือกปรับแต่ง: " + error.message);
+                    }
+                }
+            });
+        }
+
+        // --- New Payment Slip & Mark as Paid Functions ---
+        /**
+         * Displays the payment slip modal for a given order.
+         * @param {string} orderId - The ID of the order to display/edit slip for.
+         */
+        function showPaymentSlipModal(orderId) {
+            currentOrderIdForSlip = orderId; // Store the order ID when the modal is opened
+            const order = orders.find(o => o.id === orderId);
+
+            if (!order) {
+                showCustomAlert('ไม่พบข้อมูลออเดอร์สำหรับสลิป');
+                return;
+            }
+
+            // Display current payment status and date
+            paymentStatusDisplay.textContent = order.isCancelled ? 'ยกเลิกแล้ว' : (order.isPaid ? 'ชำระแล้ว' : 'ยังไม่ชำระ');
+            paymentStatusDisplay.className = order.isCancelled ? 'font-semibold text-red-500' : (order.isPaid ? 'font-semibold text-green-600' : 'font-semibold text-orange-500');
+            paymentDateDisplay.textContent = order.isPaid && order.paymentDate ? new Date(order.paymentDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+
+            // Populate URL input and image
+            paymentSlipUrlInput.value = order.paymentSlipUrl || '';
+            if (order.paymentSlipUrl) {
+                paymentSlipImage.src = order.paymentSlipUrl;
+                paymentSlipImageContainer.classList.remove('hidden');
+                imageLoadError.style.display = 'none'; // Hide error if URL is present
+            } else {
+                paymentSlipImage.src = ''; // Clear image
+                paymentSlipImageContainer.classList.add('hidden');
+            }
+
+            // Show/hide Mark as Paid button
+            if (order.isPaid || order.isCancelled) {
+                markAsPaidButton.classList.add('hidden');
+            } else {
+                markAsPaidButton.classList.remove('hidden');
+            }
+
+            paymentSlipModal.style.display = 'flex';
+        }
+
+        function closePaymentSlipModal() {
+            paymentSlipModal.style.display = 'none';
+            paymentSlipUrlInput.value = ''; // Clear input
+            paymentSlipImage.src = ''; // Clear image
+            paymentSlipImageContainer.classList.add('hidden');
+            imageLoadError.style.display = 'none';
+        }
+
+        async function savePaymentSlipUrl() {
+            // Capture orderIdToSave before any async operation or potential state change
+            const orderIdToSave = currentOrderIdForSlip; 
+            if (!orderIdToSave) { // Use captured ID for check
+                showCustomAlert('ไม่พบออเดอร์ที่เลือก โปรดลองเปิด Modal ใหม่อีกครั้ง');
+                return;
+            }
+            if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+
+            const slipUrl = paymentSlipUrlInput.value.trim();
+
+            if (slipUrl === '') {
+                showCustomAlert('โปรดระบุ URL ของสลิป');
+                return;
+            }
+            
+            // Show the confirm dialog
+            showCustomConfirm('คุณต้องการบันทึก URL สลิปนี้ใช่หรือไม่? URL จะแสดงในบิลด้วย', async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        const ordersColRef = collection(db, `artifacts/${appId}/public_orders`);
+                        await updateDoc(doc(ordersColRef, orderIdToSave), { // Use the captured ID
+                            paymentSlipUrl: slipUrl
+                        });
+                        closePaymentSlipModal(); // Close the payment slip modal first
+                        showCustomAlert('บันทึก URL สลิปเรียบร้อยแล้ว!'); // Then show the alert
+                    } catch (error) {
+                        console.error("Error saving payment slip URL:", error);
+                        closePaymentSlipModal(); // Close the payment slip modal on error too
+                        showCustomAlert("เกิดข้อผิดพลาดในการบันทึก URL สลิป: " + error.message);
+                    } finally {
+                        currentOrderIdForSlip = null; // Clear the stored order ID after completion or cancellation
+                    }
+                } else {
+                    // If not confirmed, clear the stored order ID as the action was cancelled
+                    currentOrderIdForSlip = null;
+                }
+            });
+        }
+
+        /**
+         * Marks an order as paid.
+         * @param {string} orderId - The ID of the order to mark as paid.
+         */
+        async function markOrderAsPaid(orderId) {
+            // Capture orderIdToMarkPaid before any async operation or potential state change
+            const orderIdToMarkPaid = orderId;
+            if (!orderIdToMarkPaid) { // Use captured ID for check
+                showCustomAlert('ไม่พบออเดอร์ที่เลือก โปรดลองเปิด Modal ใหม่อีกครั้ง');
+                return;
+            }
+            // Show the confirm dialog
+            showCustomConfirm('คุณต้องการยืนยันว่าบิลนี้ชำระเงินเรียบร้อยแล้วใช่หรือไม่?', async (confirmed) => {
+                if (confirmed) {
+                    if (!isFirebaseReady) { showCustomAlert("ระบบฐานข้อมูลไม่พร้อมใช้งาน"); return; }
+                    try {
+                        const ordersColRef = collection(db, `artifacts/${appId}/public_orders`);
+                        await updateDoc(doc(ordersColRef, orderIdToMarkPaid), { // Use the captured ID
+                            isPaid: true,
+                            paymentDate: new Date().toISOString(),
+                            status: 'paid' // Update internal status for consistency
+                        });
+                        closePaymentSlipModal(); // Close modal after marking as paid
+                        showCustomAlert('ออเดอร์นี้ถูกทำเครื่องหมายว่าชำระแล้วเรียบร้อย!');
+                    } catch (error) {
+                        console.error("Error marking order as paid:", error);
+                        closePaymentSlipModal(); // Close modal on error too
+                        showCustomAlert("เกิดข้อผิดพลาดในการยืนยันชำระเงิน: " + error.message);
+                    } finally {
+                        currentOrderIdForSlip = null; // Clear the stored order ID after completion or cancellation
+                    }
+                } else {
+                    // If not confirmed, clear the stored order ID as the action was cancelled
+                    currentOrderIdForSlip = null;
+                }
+            });
+        }
+
+    </script>
+</body>
+</html>
